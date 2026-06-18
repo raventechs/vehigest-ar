@@ -4,6 +4,12 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Rodix — Gestión de flota</title>
+<meta name="description" content="Gestión de vehículos, servicios y documentación para flotas y particulares.">
+<meta name="theme-color" content="#0f1e3d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rodix">
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -421,7 +427,7 @@ input,select,button,textarea{font-family:var(--font)}
     <div class="demo-icon">⏳</div>
     <div class="demo-title">Tu demo de 24hs terminó</div>
     <div class="demo-sub">Gracias por probar Rodix. Para seguir controlando tus vehículos y vencimientos, contactanos y te activamos tu cuenta.</div>
-    <a href="mailto:raventechs@gmail.com?subject=Quiero activar Rodix&body=Hola, probé la demo y me interesa continuar." class="btn-demo-email">✉️ Contactar por email</a>
+    <a href="mailto:ventas@raventechsapp.com?subject=Quiero activar Rodix&body=Hola, probé la demo y me interesa continuar." class="btn-demo-email">✉️ Contactar por email</a>
     <button class="btn-demo-logout" id="btn-demo-logout">Cerrar sesión</button>
   </div>
 </div>
@@ -458,6 +464,8 @@ const ADMIN_PIN = "1990";
 const firebaseApp=initializeApp(firebaseConfig);
 const auth=getAuth(firebaseApp);
 const db=getFirestore(firebaseApp);
+
+function sanitizeHTML(str){const d=document.createElement('div');d.textContent=str??"";return d.innerHTML;}
 
 // ── CONSTANTES ────────────────────────────────────────────
 const SERVICE_CATALOG=["Cambio de aceite","Filtro de aire","Filtro de combustible","Frenos delanteros","Frenos traseros","Cubiertas","Alineación y balanceo","Correa de distribución","Bujías","Amortiguadores","Revisión GNC anual","Cambio de cubiertas","Servicio mayor","Servicio menor","Otro"];
@@ -930,10 +938,10 @@ function renderTabContent(v){
   document.getElementById(`tab-${detailTab}`)?.classList.add("active");
   if(detailTab==="docs"){
     if(v.docs.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">Sin documentos</div><div class="empty-sub">Cargá el primero con el botón de arriba</div></div>';return;}
-    el.innerHTML=`<div class="docs-grid">${v.docs.map(d=>{const cls=d.daysLeft===null?"":d.daysLeft<0?"expired":d.daysLeft<30?"warning":"";return`<div class="doc-card ${cls}"><div class="doc-icon">${docIcon(d.type)}</div><div class="doc-name">${d.type}</div><div class="doc-issuer">${d.issuer||"—"}</div>${d.policy?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:monospace">${d.policy}</div>`:""} ${d.expiry?`<div style="font-size:10px;color:var(--muted);margin-bottom:2px">VENCE</div><div style="font-weight:700;font-size:14px;color:var(--text)">${d.expiry}</div><div class="doc-days" style="background:${d.daysLeft<0?"var(--danger-bg)":d.daysLeft<30?"var(--warn-bg)":"var(--green-bg)"};color:${daysColor(d.daysLeft)}">${daysLabel(d.daysLeft)}</div>`:`<div style="font-size:12px;color:var(--muted);font-style:italic">Sin fecha de vencimiento</div>`}${d.paid>0?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Pagado: <strong style="color:var(--text)">${fmtARS(d.paid)}</strong></div>`:""}</div>`;}).join("")}</div>`;
+    el.innerHTML=`<div class="docs-grid">${v.docs.map(d=>{const cls=d.daysLeft===null?"":d.daysLeft<0?"expired":d.daysLeft<30?"warning":"";return`<div class="doc-card ${cls}"><div class="doc-icon">${docIcon(d.type)}</div><div class="doc-name">${sanitizeHTML(d.type)}</div><div class="doc-issuer">${sanitizeHTML(d.issuer||"—")}</div>${d.policy?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:monospace">${sanitizeHTML(d.policy)}</div>`:""} ${d.expiry?`<div style="font-size:10px;color:var(--muted);margin-bottom:2px">VENCE</div><div style="font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(d.expiry)}</div><div class="doc-days" style="background:${d.daysLeft<0?"var(--danger-bg)":d.daysLeft<30?"var(--warn-bg)":"var(--green-bg)"};color:${daysColor(d.daysLeft)}">${daysLabel(d.daysLeft)}</div>`:`<div style="font-size:12px;color:var(--muted);font-style:italic">Sin fecha de vencimiento</div>`}${d.paid>0?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Pagado: <strong style="color:var(--text)">${fmtARS(d.paid)}</strong></div>`:""}</div>`;}).join("")}</div>`;
   }else{
     if(v.services.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">🔧</div><div class="empty-msg">Sin services</div><div class="empty-sub">Registrá el primero con el botón de arriba</div></div>';return;}
-    el.innerHTML=`<div class="timeline">${v.services.map(s=>`<div class="tl-item"><div class="tl-dot ${s.done?"done":"next"}">${s.done?"✓":"→"}</div><div class="tl-content"><div class="tl-top"><span class="tl-name">${s.type}</span><span class="tl-date">${s.done?s.performedAt:`<span style="color:var(--gold);font-weight:700">Próximo</span>`}</span></div><div class="tl-details">${s.km?`<span>Km: <strong>${fmtNum(s.km)}</strong></span>`:""}${s.nextKm?`<span>Próximo: <strong>${fmtNum(s.nextKm)} km</strong></span>`:""}${s.workshop?`<span>Taller: <strong>${s.workshop}</strong></span>`:""}${s.cost>0?`<span>Costo: <strong style="color:var(--gold)">${fmtARS(s.cost)}</strong></span>`:""}</div></div></div>`).join("")}</div>`;
+    el.innerHTML=`<div class="timeline">${v.services.map(s=>`<div class="tl-item"><div class="tl-dot ${s.done?"done":"next"}">${s.done?"✓":"→"}</div><div class="tl-content"><div class="tl-top"><span class="tl-name">${sanitizeHTML(s.type)}</span><span class="tl-date">${s.done?sanitizeHTML(s.performedAt):`<span style="color:var(--gold);font-weight:700">Próximo</span>`}</span></div><div class="tl-details">${s.km?`<span>Km: <strong>${fmtNum(s.km)}</strong></span>`:""}${s.nextKm?`<span>Próximo: <strong>${fmtNum(s.nextKm)} km</strong></span>`:""}${s.workshop?`<span>Taller: <strong>${sanitizeHTML(s.workshop)}</strong></span>`:""}${s.cost>0?`<span>Costo: <strong style="color:var(--gold)">${fmtARS(s.cost)}</strong></span>`:""}</div></div></div>`).join("")}</div>`;
   }
 }
 
@@ -1025,13 +1033,6 @@ document.getElementById("btn-google").addEventListener("click",async()=>{
     const errEl=document.getElementById("auth-err");
     if(errEl){errEl.textContent="Error al iniciar con Google. Intentá de nuevo.";errEl.style.display="block";errEl.classList.add("show");}
   }
-  btn.disabled=false;
-});
-
-document.getElementById("btn-google").addEventListener("click",async()=>{
-  const btn=document.getElementById("btn-google");btn.disabled=true;btn.textContent="Conectando...";
-  try{const provider=new GoogleAuthProvider();await signInWithPopup(auth,provider);}
-  catch(e){console.error(e);const err=document.getElementById("auth-error");if(err){err.textContent="Error al iniciar con Google";err.classList.add("show");}}
   btn.disabled=false;
 });
 </script>
