@@ -48,6 +48,7 @@ input,select,button,textarea{font-family:var(--font)}
 .hidden{display:none!important}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes drive{0%,100%{transform:translateX(0)}50%{transform:translateX(10px)}}
 .fade{animation:fadeUp .3s ease both}
 
 /* ══ LOGIN ═════════════════════════════════════════════════ */
@@ -313,8 +314,17 @@ input,select,button,textarea{font-family:var(--font)}
 </head>
 <body>
 
+<!-- LOADING -->
+<div id="loading-screen" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#0f1e3d,#1a3060);z-index:9999">
+  <div style="text-align:center">
+    <div style="font-size:52px;margin-bottom:14px;animation:drive 1.4s ease-in-out infinite">🚗</div>
+    <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:4px">Ro<span style="color:#f0b84a">dix</span></div>
+    <div style="font-size:13px;color:rgba(255,255,255,.6)">Cargando tu flota...</div>
+  </div>
+</div>
+
 <!-- LOGIN -->
-<div id="login-screen">
+<div id="login-screen" class="hidden">
   <div class="login-card">
     <div class="login-brand">
       <div class="login-brand-icon" id="login-logo">🚗</div>
@@ -358,7 +368,10 @@ input,select,button,textarea{font-family:var(--font)}
 
   <div class="main">
     <div class="topbar">
-      <span id="topbar-title" class="topbar-title">Dashboard</span>
+      <div>
+        <span id="topbar-title" class="topbar-title">Dashboard</span>
+        <div id="topbar-subtitle" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+      </div>
       <div class="topbar-right">
         <div class="icon-btn" id="topbar-alerts-btn">🔔<span id="topbar-dot" class="dot hidden"></span></div>
         <div id="topbar-avatar" class="avatar" style="cursor:pointer">?</div>
@@ -505,7 +518,7 @@ function fmtNum(n){return n!=null?n.toLocaleString("es-AR"):"—";}
 function fmtARS(n){return n?`$${n.toLocaleString("es-AR")}`:"—";}
 function calcVehicleStatus(docs){const days=docs.map(d=>d.daysLeft).filter(d=>d!==null);if(days.some(d=>d<0))return"bad";if(days.some(d=>d<=30))return"warn";return"ok";}
 function docIcon(type){if(type.includes("VTV"))return"🔍";if(type.includes("Seguro"))return"🛡️";if(type.includes("GNC"))return"⚡";if(type.includes("Patente"))return"📋";return"📄";}
-function spinnerHTML(){return'<div class="loading-wrap"><div class="spinner"></div></div>';}
+function spinnerHTML(){return'<div class="loading-wrap" style="flex-direction:column;gap:10px"><div style="font-size:28px;animation:drive 1.4s ease-in-out infinite">🚗</div><div class="spinner"></div></div>';}
 
 function buildAlerts(vehicles){
   const alerts=[];
@@ -756,6 +769,7 @@ onAuthStateChanged(auth,async user=>{
     userDoc=snap.data();
     if(userDoc.banned){showToast('Cuenta suspendida');await signOut(auth);return;}
 
+    document.getElementById("loading-screen").classList.add("hidden");
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("app-screen").classList.remove("hidden");
     const ini=initials(user.email);
@@ -769,6 +783,7 @@ onAuthStateChanged(auth,async user=>{
     currentUser=null;userDoc=null;
     document.getElementById("demo-wall").classList.remove("open");
     document.getElementById("app-screen").classList.add("hidden");
+    document.getElementById("loading-screen").classList.add("hidden");
     document.getElementById("login-screen").classList.remove("hidden");
     vehicles=[];loading=true;
   }
@@ -811,6 +826,16 @@ function navigateTo(page,extra){
   updateMobNav(page);
   const title=page==="vehicle-detail"?(vehicles.find(v=>v.id===selectedVehicleId)||{brand:"",model:""}).brand+" "+(vehicles.find(v=>v.id===selectedVehicleId)||{brand:"",model:""}).model:PAGE_TITLES[page]||"";
   document.getElementById("topbar-title").textContent=title.trim()||"Detalle";
+  const subEl=document.getElementById("topbar-subtitle");
+  if(page==="dashboard"){
+    const alertasActivas=vehicles.reduce((a,v)=>a+(v.docs||[]).filter(d=>d.daysLeft!==null&&d.daysLeft<30).length,0);
+    subEl.textContent=`🚗 ${vehicles.length} vehículo${vehicles.length!==1?"s":""}${alertasActivas>0?` · ⚠ ${alertasActivas} alerta${alertasActivas!==1?"s":""}`:" · Todo en orden"}`;
+  } else if(page==="vehicle-detail"){
+    const veh=vehicles.find(v=>v.id===selectedVehicleId);
+    subEl.textContent=veh?`${veh.plate} · ${veh.fuel||"—"}`:"";
+  } else {
+    subEl.textContent="";
+  }
   document.querySelectorAll(".page[id^='page-']").forEach(p=>p.classList.add("hidden"));
   renderCurrentPage();
 }
@@ -938,10 +963,16 @@ function renderTabContent(v){
   document.getElementById(`tab-${detailTab}`)?.classList.add("active");
   if(detailTab==="docs"){
     if(v.docs.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">Sin documentos</div><div class="empty-sub">Cargá el primero con el botón de arriba</div></div>';return;}
-    el.innerHTML=`<div class="docs-grid">${v.docs.map(d=>{const cls=d.daysLeft===null?"":d.daysLeft<0?"expired":d.daysLeft<30?"warning":"";return`<div class="doc-card ${cls}"><div class="doc-icon">${docIcon(d.type)}</div><div class="doc-name">${sanitizeHTML(d.type)}</div><div class="doc-issuer">${sanitizeHTML(d.issuer||"—")}</div>${d.policy?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:monospace">${sanitizeHTML(d.policy)}</div>`:""} ${d.expiry?`<div style="font-size:10px;color:var(--muted);margin-bottom:2px">VENCE</div><div style="font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(d.expiry)}</div><div class="doc-days" style="background:${d.daysLeft<0?"var(--danger-bg)":d.daysLeft<30?"var(--warn-bg)":"var(--green-bg)"};color:${daysColor(d.daysLeft)}">${daysLabel(d.daysLeft)}</div>`:`<div style="font-size:12px;color:var(--muted);font-style:italic">Sin fecha de vencimiento</div>`}${d.paid>0?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Pagado: <strong style="color:var(--text)">${fmtARS(d.paid)}</strong></div>`:""}</div>`;}).join("")}</div>`;
+    el.innerHTML=`<div class="docs-grid">${v.docs.map(d=>{const cls=d.daysLeft===null?"":d.daysLeft<0?"expired":d.daysLeft<30?"warning":"";return`<div class="doc-card ${cls}" data-doc-id="${d.id}" style="cursor:pointer" title="Tocá para editar"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div class="doc-icon">${docIcon(d.type)}</div><span style="font-size:14px;opacity:.5">✏️</span></div><div class="doc-name">${sanitizeHTML(d.type)}</div><div class="doc-issuer">${sanitizeHTML(d.issuer||"—")}</div>${d.policy?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:monospace">${sanitizeHTML(d.policy)}</div>`:""} ${d.expiry?`<div style="font-size:10px;color:var(--muted);margin-bottom:2px">VENCE</div><div style="font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(d.expiry)}</div><div class="doc-days" style="background:${d.daysLeft<0?"var(--danger-bg)":d.daysLeft<30?"var(--warn-bg)":"var(--green-bg)"};color:${daysColor(d.daysLeft)}">${daysLabel(d.daysLeft)}</div>`:`<div style="font-size:12px;color:var(--muted);font-style:italic">Sin fecha de vencimiento</div>`}${d.paid>0?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Pagado: <strong style="color:var(--text)">${fmtARS(d.paid)}</strong></div>`:""}</div>`;}).join("")}</div>`;
+    el.querySelectorAll("[data-doc-id]").forEach(card=>card.addEventListener("click",()=>{
+      const doc_=v.docs.find(d=>d.id===card.dataset.docId);if(doc_)openAddDocModal(v,doc_);
+    }));
   }else{
     if(v.services.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">🔧</div><div class="empty-msg">Sin services</div><div class="empty-sub">Registrá el primero con el botón de arriba</div></div>';return;}
-    el.innerHTML=`<div class="timeline">${v.services.map(s=>`<div class="tl-item"><div class="tl-dot ${s.done?"done":"next"}">${s.done?"✓":"→"}</div><div class="tl-content"><div class="tl-top"><span class="tl-name">${sanitizeHTML(s.type)}</span><span class="tl-date">${s.done?sanitizeHTML(s.performedAt):`<span style="color:var(--gold);font-weight:700">Próximo</span>`}</span></div><div class="tl-details">${s.km?`<span>Km: <strong>${fmtNum(s.km)}</strong></span>`:""}${s.nextKm?`<span>Próximo: <strong>${fmtNum(s.nextKm)} km</strong></span>`:""}${s.workshop?`<span>Taller: <strong>${sanitizeHTML(s.workshop)}</strong></span>`:""}${s.cost>0?`<span>Costo: <strong style="color:var(--gold)">${fmtARS(s.cost)}</strong></span>`:""}</div></div></div>`).join("")}</div>`;
+    el.innerHTML=`<div class="timeline">${v.services.map(s=>`<div class="tl-item" data-service-id="${s.id}" style="cursor:pointer" title="Tocá para editar"><div class="tl-dot ${s.done?"done":"next"}">${s.done?"✓":"→"}</div><div class="tl-content"><div class="tl-top"><span class="tl-name">${sanitizeHTML(s.type)}</span><span class="tl-date">${s.done?sanitizeHTML(s.performedAt):`<span style="color:var(--gold);font-weight:700">Próximo</span>`}</span></div><div class="tl-details">${s.km?`<span>Km: <strong>${fmtNum(s.km)}</strong></span>`:""}${s.nextKm?`<span>Próximo: <strong>${fmtNum(s.nextKm)} km</strong></span>`:""}${s.workshop?`<span>Taller: <strong>${sanitizeHTML(s.workshop)}</strong></span>`:""}${s.cost>0?`<span>Costo: <strong style="color:var(--gold)">${fmtARS(s.cost)}</strong></span>`:""}</div></div><span style="font-size:14px;opacity:.5;align-self:center">✏️</span></div>`).join("")}</div>`;
+    el.querySelectorAll("[data-service-id]").forEach(item=>item.addEventListener("click",()=>{
+      const svc=v.services.find(s=>s.id===item.dataset.serviceId);if(svc)openAddServiceModal(v,svc);
+    }));
   }
 }
 
@@ -993,31 +1024,54 @@ function openAddVehicleModal(){
   });
 }
 
-function openAddServiceModal(v){
-  const wrap=openModal(`<div class="modal-overlay"><div class="modal"><div class="modal-header"><span class="modal-title">🔧 Registrar service</span><div class="modal-close" id="modal-close-btn">✕</div></div><div style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:monospace;background:var(--surface2);padding:8px 12px;border-radius:var(--radius-sm)">${v.brand} ${v.model} · ${v.plate}</div><div class="field"><label>Tipo de service *</label><select id="f-type">${SERVICE_CATALOG.map(s=>`<option>${s}</option>`).join("")}</select></div><div class="field-row"><div class="field"><label>Fecha *</label><input id="f-date" type="date"/></div><div class="field"><label>Km al momento *</label><input id="f-km" type="number" placeholder="87000"/></div></div><div class="field-row"><div class="field"><label>Próximo service (km)</label><input id="f-nextKm" type="number" placeholder="92000"/></div><div class="field"><label>Costo total (ARS)</label><input id="f-cost" type="number" placeholder="28000"/></div></div><div class="field"><label>Taller / Concesionaria</label><input id="f-workshop" placeholder="Nombre del taller"/></div><div class="modal-footer"><button class="btn-cancel" id="modal-cancel-btn">Cancelar</button><button class="btn-save" id="modal-save-btn">Guardar service</button></div></div></div>`);
+function openAddServiceModal(v,existing=null){
+  const isEdit=!!existing;
+  const wrap=openModal(`<div class="modal-overlay"><div class="modal"><div class="modal-header"><span class="modal-title">🔧 ${isEdit?"Editar":"Registrar"} service</span><div class="modal-close" id="modal-close-btn">✕</div></div><div style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:monospace;background:var(--surface2);padding:8px 12px;border-radius:var(--radius-sm)">${sanitizeHTML(v.brand)} ${sanitizeHTML(v.model)} · ${sanitizeHTML(v.plate)}</div><div class="field"><label>Tipo de service *</label><select id="f-type">${SERVICE_CATALOG.map(s=>`<option${existing&&existing.type===s?" selected":""}>${s}</option>`).join("")}</select></div><div class="field-row"><div class="field"><label>Fecha *</label><input id="f-date" type="date" value="${existing?.performedAt||""}"/></div><div class="field"><label>Km al momento *</label><input id="f-km" type="number" placeholder="87000" value="${existing?.km||""}"/></div></div><div class="field-row"><div class="field"><label>Próximo service (km)</label><input id="f-nextKm" type="number" placeholder="92000" value="${existing?.nextKm||""}"/></div><div class="field"><label>Costo total (ARS)</label><input id="f-cost" type="number" placeholder="28000" value="${existing?.cost||""}"/></div></div><div class="field"><label>Taller / Concesionaria</label><input id="f-workshop" placeholder="Nombre del taller" value="${existing?.workshop?sanitizeHTML(existing.workshop):""}"/></div><div class="modal-footer">${isEdit?'<button class="btn-cancel" id="modal-delete-btn" style="color:var(--danger)">🗑 Eliminar</button>':""}<button class="btn-cancel" id="modal-cancel-btn">Cancelar</button><button class="btn-save" id="modal-save-btn">${isEdit?"Guardar cambios":"Guardar service"}</button></div></div></div>`);
   wrap.querySelector("#modal-close-btn").addEventListener("click",closeModal);
   wrap.querySelector("#modal-cancel-btn").addEventListener("click",closeModal);
   wrap.querySelector(".modal-overlay").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal();});
+  wrap.querySelector("#modal-delete-btn")?.addEventListener("click",async()=>{
+    if(!confirm("¿Eliminar este service? Esta acción no se puede deshacer."))return;
+    const btn=wrap.querySelector("#modal-delete-btn");btn.disabled=true;btn.textContent="Eliminando...";
+    try{await deleteDoc(doc(db,"vehicles",v.id,"services",existing.id));closeModal();showToast("Service eliminado");}
+    catch(e){showToast("Error al eliminar","error");btn.disabled=false;btn.textContent="🗑 Eliminar";}
+  });
   wrap.querySelector("#modal-save-btn").addEventListener("click",async()=>{
     const date=wrap.querySelector("#f-date").value;const km=wrap.querySelector("#f-km").value;
     if(!date||!km){showToast("Fecha y kilometraje son obligatorios","error");return;}
     const btn=wrap.querySelector("#modal-save-btn");btn.disabled=true;btn.textContent="Guardando...";
-    try{await addDoc(collection(db,"vehicles",v.id,"services"),{type:wrap.querySelector("#f-type").value,performedAt:date,km:parseInt(km)||0,nextKm:wrap.querySelector("#f-nextKm").value?parseInt(wrap.querySelector("#f-nextKm").value):null,workshop:wrap.querySelector("#f-workshop").value.trim(),cost:parseInt(wrap.querySelector("#f-cost").value)||0,done:true,createdAt:serverTimestamp()});closeModal();showToast("Service registrado");}
-    catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent="Guardar service";}
+    const data={type:wrap.querySelector("#f-type").value,performedAt:date,km:parseInt(km)||0,nextKm:wrap.querySelector("#f-nextKm").value?parseInt(wrap.querySelector("#f-nextKm").value):null,workshop:wrap.querySelector("#f-workshop").value.trim(),cost:parseInt(wrap.querySelector("#f-cost").value)||0,done:true};
+    try{
+      if(isEdit)await updateDoc(doc(db,"vehicles",v.id,"services",existing.id),data);
+      else await addDoc(collection(db,"vehicles",v.id,"services"),{...data,createdAt:serverTimestamp()});
+      closeModal();showToast(isEdit?"Service actualizado":"Service registrado");
+    }catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent=isEdit?"Guardar cambios":"Guardar service";}
   });
 }
 
-function openAddDocModal(v){
-  const wrap=openModal(`<div class="modal-overlay"><div class="modal"><div class="modal-header"><span class="modal-title">📋 Cargar documento</span><div class="modal-close" id="modal-close-btn">✕</div></div><div style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:monospace;background:var(--surface2);padding:8px 12px;border-radius:var(--radius-sm)">${v.brand} ${v.model} · ${v.plate}</div><div class="field"><label>Tipo de documento *</label><select id="f-type"><option>VTV</option><option>Seguro</option><option>Patente 1°</option><option>Patente 2°</option><option>Oblea GNC</option><option>Licencia</option><option>Cédula verde</option></select></div><div class="field-row"><div class="field"><label>Emisor / Compañía</label><input id="f-issuer" placeholder="La Caja, ARBA..."/></div><div class="field"><label>N° de póliza / referencia</label><input id="f-policy" placeholder="POL-2024-0001"/></div></div><div class="field-row"><div class="field"><label>Fecha de vencimiento *</label><input id="f-expiry" type="date"/></div><div class="field"><label>Monto pagado (ARS)</label><input id="f-amount" type="number" placeholder="65000"/></div></div><div class="modal-footer"><button class="btn-cancel" id="modal-cancel-btn">Cancelar</button><button class="btn-save" id="modal-save-btn">Guardar documento</button></div></div></div>`);
+function openAddDocModal(v,existing=null){
+  const isEdit=!!existing;
+  const TIPOS=["VTV","Seguro","Patente 1°","Patente 2°","Oblea GNC","Licencia","Cédula verde"];
+  const wrap=openModal(`<div class="modal-overlay"><div class="modal"><div class="modal-header"><span class="modal-title">📋 ${isEdit?"Editar":"Cargar"} documento</span><div class="modal-close" id="modal-close-btn">✕</div></div><div style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:monospace;background:var(--surface2);padding:8px 12px;border-radius:var(--radius-sm)">${sanitizeHTML(v.brand)} ${sanitizeHTML(v.model)} · ${sanitizeHTML(v.plate)}</div><div class="field"><label>Tipo de documento *</label><select id="f-type">${TIPOS.map(t=>`<option${existing&&existing.type===t?" selected":""}>${t}</option>`).join("")}</select></div><div class="field-row"><div class="field"><label>Emisor / Compañía</label><input id="f-issuer" placeholder="La Caja, ARBA..." value="${existing?.issuer?sanitizeHTML(existing.issuer):""}"/></div><div class="field"><label>N° de póliza / referencia</label><input id="f-policy" placeholder="POL-2024-0001" value="${existing?.policy?sanitizeHTML(existing.policy):""}"/></div></div><div class="field-row"><div class="field"><label>Fecha de vencimiento *</label><input id="f-expiry" type="date" value="${existing?.expiry||""}"/></div><div class="field"><label>Monto pagado (ARS)</label><input id="f-amount" type="number" placeholder="65000" value="${existing?.paid||""}"/></div></div><div class="modal-footer">${isEdit?'<button class="btn-cancel" id="modal-delete-btn" style="color:var(--danger)">🗑 Eliminar</button>':""}<button class="btn-cancel" id="modal-cancel-btn">Cancelar</button><button class="btn-save" id="modal-save-btn">${isEdit?"Guardar cambios":"Guardar documento"}</button></div></div></div>`);
   wrap.querySelector("#modal-close-btn").addEventListener("click",closeModal);
   wrap.querySelector("#modal-cancel-btn").addEventListener("click",closeModal);
   wrap.querySelector(".modal-overlay").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal();});
+  wrap.querySelector("#modal-delete-btn")?.addEventListener("click",async()=>{
+    if(!confirm("¿Eliminar este documento? Esta acción no se puede deshacer."))return;
+    const btn=wrap.querySelector("#modal-delete-btn");btn.disabled=true;btn.textContent="Eliminando...";
+    try{await deleteDoc(doc(db,"vehicles",v.id,"docs",existing.id));closeModal();showToast("Documento eliminado");}
+    catch(e){showToast("Error al eliminar","error");btn.disabled=false;btn.textContent="🗑 Eliminar";}
+  });
   wrap.querySelector("#modal-save-btn").addEventListener("click",async()=>{
     const expiry=wrap.querySelector("#f-expiry").value;
     if(!expiry){showToast("La fecha de vencimiento es obligatoria","error");return;}
     const btn=wrap.querySelector("#modal-save-btn");btn.disabled=true;btn.textContent="Guardando...";
-    try{await addDoc(collection(db,"vehicles",v.id,"docs"),{type:wrap.querySelector("#f-type").value,issuer:wrap.querySelector("#f-issuer").value.trim(),policy:wrap.querySelector("#f-policy").value.trim(),expiry,paid:parseInt(wrap.querySelector("#f-amount").value)||0,createdAt:serverTimestamp()});closeModal();showToast("Documento cargado");}
-    catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent="Guardar documento";}
+    const data={type:wrap.querySelector("#f-type").value,issuer:wrap.querySelector("#f-issuer").value.trim(),policy:wrap.querySelector("#f-policy").value.trim(),expiry,paid:parseInt(wrap.querySelector("#f-amount").value)||0};
+    try{
+      if(isEdit)await updateDoc(doc(db,"vehicles",v.id,"docs",existing.id),data);
+      else await addDoc(collection(db,"vehicles",v.id,"docs"),{...data,createdAt:serverTimestamp()});
+      closeModal();showToast(isEdit?"Documento actualizado":"Documento cargado");
+    }catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent=isEdit?"Guardar cambios":"Guardar documento";}
   });
 }
 
