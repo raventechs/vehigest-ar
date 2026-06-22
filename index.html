@@ -663,6 +663,11 @@ async function loadAdminUsuarios(){
           ${banned?`<button class="btn-unban" data-uid="${d.id}">✅ Desbanear</button>`:`<button class="btn-ban" data-uid="${d.id}">🚫 Banear</button>`}
         </div>
         ${demoActions}
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <label style="font-size:11px;color:var(--muted)">Límite de vehículos:</label>
+          <input type="number" min="1" max="50" value="${u.features?.limiteVehiculos||1}" style="width:56px;padding:6px;border:1.5px solid #dde1ec;border-radius:6px;font-size:12px;font-family:var(--font)" data-limit-uid="${d.id}"/>
+          <button class="btn-setlimit" data-uid="${d.id}">💾 Guardar límite</button>
+        </div>
       </div>`;
     }).join('');
   }catch{c.innerHTML='<div class="empty"><div class="empty-msg">Sin colección de usuarios</div><div class="empty-sub">Los usuarios se crean al registrarse</div></div>';}
@@ -677,6 +682,7 @@ document.getElementById('admin-usuarios-list').addEventListener('click',async(e)
   const unban=e.target.closest('.btn-unban');
   const ext=e.target.closest('.btn-aext');
   const act=e.target.closest('.btn-aact');
+  const setlim=e.target.closest('.btn-setlimit');
   if(ban){if(!confirm('¿Banear este usuario?'))return;await updateDoc(doc(db,'usuarios',ban.dataset.uid),{banned:true});showToast('Usuario baneado');await loadAdminUsuarios();}
   if(unban){await updateDoc(doc(db,'usuarios',unban.dataset.uid),{banned:false});showToast('Usuario desbaneado');await loadAdminUsuarios();}
   if(ext){
@@ -690,6 +696,11 @@ document.getElementById('admin-usuarios-list').addEventListener('click',async(e)
   if(act&&confirm('¿Activar cuenta completa?')){
     await updateDoc(doc(db,'usuarios',act.dataset.uid),{status:'activo',demoExpiry:null});
     showToast('Cuenta activada ✅');await loadAdminUsuarios();
+  }
+  if(setlim){
+    const val=parseInt(document.querySelector(`input[data-limit-uid="${setlim.dataset.uid}"]`)?.value)||1;
+    await updateDoc(doc(db,'usuarios',setlim.dataset.uid),{features:{limiteVehiculos:val}});
+    showToast(`Límite actualizado a ${val} vehículo${val>1?"s":""}`);await loadAdminUsuarios();
   }
 });
 
@@ -734,7 +745,8 @@ document.getElementById("btn-login").addEventListener("click",async()=>{
       await setDoc(doc(db,'usuarios',cred.user.uid),{
         uid:cred.user.uid,email,banned:false,
         status:'demo',demoStart:serverTimestamp(),
-        createdAt:serverTimestamp()
+        createdAt:serverTimestamp(),
+        features:{limiteVehiculos:1}
       });
     }
     else await signInWithEmailAndPassword(auth,email,pass);
@@ -804,7 +816,8 @@ onAuthStateChanged(auth,async user=>{
       await setDoc(userRef,{
         uid:user.uid,email:user.email,banned:false,
         status:'demo',demoStart:serverTimestamp(),
-        createdAt:serverTimestamp()
+        createdAt:serverTimestamp(),
+        features:{limiteVehiculos:1}
       });
       snap=await getDoc(userRef);
     }
@@ -1057,6 +1070,13 @@ function closeModal(){document.getElementById("modal-container").innerHTML="";}
 
 function openAddVehicleModal(existing=null){
   const isEdit=!!existing;
+  if(!isEdit){
+    const limite=userDoc?.features?.limiteVehiculos||1;
+    if(vehicles.length>=limite){
+      showToast(`Llegaste al límite de ${limite} vehículo${limite>1?"s":""} de tu plan. Contactá a soporte para ampliarlo.`,"error");
+      return;
+    }
+  }
   const wrap=openModal(`<div class="modal-overlay"><div class="modal"><div class="modal-header"><span class="modal-title">🚗 ${isEdit?"Editar":"Agregar"} vehículo</span><div class="modal-close" id="modal-close-btn">✕</div></div><div class="field-row"><div class="field"><label>Marca *</label><input id="f-brand" placeholder="Toyota" value="${existing?.brand?sanitizeHTML(existing.brand):""}"/></div><div class="field"><label>Modelo *</label><input id="f-model" placeholder="Hilux" value="${existing?.model?sanitizeHTML(existing.model):""}"/></div></div><div class="field-row"><div class="field"><label>Año</label><input id="f-year" type="number" value="${existing?.year||2024}"/></div><div class="field"><label>Patente *</label><input id="f-plate" placeholder="AB999CD" style="font-family:monospace;letter-spacing:2px" value="${existing?.plate?sanitizeHTML(existing.plate):""}"/></div></div><div class="field-row"><div class="field"><label>Combustible</label><select id="f-fuel">${["Nafta","Diesel","GNC","Eléctrico","Híbrido"].map(f=>`<option${existing&&existing.fuel===f?" selected":""}>${f}</option>`).join("")}</select></div><div class="field"><label>Kilometraje actual</label><input id="f-km" type="number" value="${existing?.km||0}"/></div></div><div class="field-row"><div class="field"><label>Color</label><input id="f-color" placeholder="Blanco" value="${existing?.color?sanitizeHTML(existing.color):""}"/></div><div class="field"><label>¿Tiene GNC?</label><select id="f-gnc"><option value="no"${existing&&!existing.gnc?" selected":""}>No</option><option value="si"${existing&&existing.gnc?" selected":""}>Sí</option></select></div></div><div class="modal-footer">${isEdit?'<button class="btn-cancel" id="modal-delete-btn" style="color:var(--danger)">🗑 Eliminar</button>':""}<button class="btn-cancel" id="modal-cancel-btn">Cancelar</button><button class="btn-save" id="modal-save-btn">${isEdit?"Guardar cambios":"Guardar vehículo"}</button></div></div></div>`);
   wrap.querySelector("#modal-close-btn").addEventListener("click",closeModal);
   wrap.querySelector("#modal-cancel-btn").addEventListener("click",closeModal);
@@ -1175,8 +1195,13 @@ service cloud.firestore {
     }
 
     match /usuarios/{userId} {
-      allow read, create: if request.auth != null;
-      allow update: if request.auth != null;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.token.email == 'rgaraventa@gmail.com' ||
+        (request.auth.uid == userId &&
+         request.resource.data.features == resource.data.features)
+      );
       allow delete: if false;
     }
   }
