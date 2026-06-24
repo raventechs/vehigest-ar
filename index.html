@@ -1,17 +1,13 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.6.3
+  RODIX — v1.6.7
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.6.2: el panel admin no podía ver vehículos
-  ni usuarios de otros clientes tras pasar al modelo de flota,
-  porque las reglas solo dejaban ver lo de la propia flota. Se
-  agregó el bypass de admin (esAdmin()) a la lectura de vehículos
-  y sus subcolecciones. También se blindó loadAdminVehiculos con
-  try/catch para que un error de permisos no rompa la consola.
-  IMPORTANTE: requiere volver a pegar las reglas de Firestore
-  completas (cambiaron las reglas de "read" de vehicles/docs/
-  services/insumos/revisiones).
+  Cambios respecto a v1.6.6: en la pantalla de Alertas, en el lugar
+  donde estaba "Al día" ahora aparece "👥 Mi equipo" con la cantidad
+  de personas con acceso (choferes + el dueño), solo si el cliente
+  tiene el módulo de flota habilitado y es el dueño. Tocarlo abre
+  directo el panel de "Mi equipo".
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -313,6 +309,7 @@ input,select,button,textarea{font-family:var(--font)}
   .detail-actions{flex-direction:row;align-items:center}
   .field-row{grid-template-columns:1fr}
   .dash-two-col{grid-template-columns:1fr!important}
+  .alerts-two-col{grid-template-columns:1fr!important}
   .topbar{padding:14px 16px}
   .topbar-logo-mob{display:flex!important}
 }
@@ -410,6 +407,7 @@ input,select,button,textarea{font-family:var(--font)}
         <div id="topbar-avatar" class="avatar" style="cursor:pointer">?</div>
         <div id="topbar-user-menu" class="hidden" style="position:absolute;top:48px;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);min-width:200px;z-index:300;padding:8px;">
           <div id="tum-email" style="font-size:12px;color:var(--muted);padding:8px 10px 10px;border-bottom:1px solid var(--border);margin-bottom:6px;word-break:break-all">—</div>
+          <button id="btn-equipo-mob" class="hidden" style="width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px">👥 Mi equipo</button>
           <button id="btn-theme-mob" style="width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px">🌙 Modo oscuro</button>
           <button id="btn-logout-mob" style="width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--danger);display:flex;align-items:center;gap:8px">⏻ Cerrar sesión</button>
         </div>
@@ -536,9 +534,18 @@ let vehicles=[],loading=true,currentPage="dashboard",selectedVehicleId=null;
 let unsubVehicles=null,currentUser=null,detailTab="docs";
 let logoTapCount=0,logoTapTimer=null,pinBuffer="";
 let isRegister=false;
+let equipoMiembros=null;
 const pendingInviteId=new URLSearchParams(window.location.search).get('invite');
 function flotaOwnerUid(){return(userDoc?.rolFlota==='chofer'&&userDoc?.flotaId)?userDoc.flotaId:currentUser.uid;}
 function esOwnerFlota(){return!userDoc||userDoc.rolFlota!=='chofer';}
+async function refreshEquipoMiembros(){
+  if(!userDoc?.features?.flotaHabilitada||!esOwnerFlota()){equipoMiembros=null;return;}
+  try{
+    const snap=await getDocs(query(collection(db,'usuarios'),where('flotaId','==',currentUser.uid),where('rolFlota','==','chofer')));
+    equipoMiembros=snap.size+1;
+  }catch(e){equipoMiembros=null;}
+  if(currentPage==="alerts")renderCurrentPage();
+}
 
 // ── TEMA ──────────────────────────────────────────────────
 function initTheme(){applyTheme(localStorage.getItem('rodix-theme')||'light');}
@@ -564,11 +571,11 @@ function showToast(msg,type="ok"){
 }
 function initials(email){if(!email)return"?";return email.substring(0,2).toUpperCase();}
 function calcDaysLeft(expiry){if(!expiry)return null;return Math.round((new Date(expiry)-new Date())/86400000);}
-function daysColor(d){if(d===null||d===undefined)return"var(--muted)";if(d<0)return"var(--danger)";if(d<=30)return"var(--warn)";return"var(--green)";}
+function daysColor(d){if(d===null||d===undefined)return"var(--muted)";if(d<0)return"var(--danger)";if(d<=7)return"var(--warn)";return"var(--green)";}
 function daysLabel(d){if(d===null||d===undefined)return"Sin datos";if(d<0)return`Vencido hace ${Math.abs(d)}d`;if(d===0)return"Vence hoy";return`${d} días`;}
 function fmtNum(n){return n!=null?n.toLocaleString("es-AR"):"—";}
 function fmtARS(n){return n?`$${n.toLocaleString("es-AR")}`:"—";}
-function calcVehicleStatus(docs){const days=docs.map(d=>d.daysLeft).filter(d=>d!==null);if(days.some(d=>d<0))return"bad";if(days.some(d=>d<=30))return"warn";return"ok";}
+function calcVehicleStatus(docs){const days=docs.map(d=>d.daysLeft).filter(d=>d!==null);if(days.some(d=>d<0))return"bad";if(days.some(d=>d<=7))return"warn";return"ok";}
 function docIcon(type){if(type.includes("VTV"))return"🔍";if(type.includes("Seguro"))return"🛡️";if(type.includes("GNC"))return"⚡";if(type.includes("Patente"))return"📋";return"📄";}
 
 const COLOR_MAP={"blanco":"#f1f3f5","negro":"#1a1a1a","gris":"#9aa0a6","plata":"#c4c7cc","rojo":"#d92b2b","azul":"#1e5fbf","celeste":"#4aa8e0","verde":"#2e8b4f","amarillo":"#f2c94c","naranja":"#e8732c","marrón":"#6b4226","marron":"#6b4226","beige":"#d9c7a3","violeta":"#7b4ea3","bordo":"#7a1f2b","dorado":"#c9a45c"};
@@ -589,21 +596,20 @@ function buildAlerts(vehicles){
   vehicles.forEach(v=>{
     v.docs.forEach(d=>{
       if(d.daysLeft===null)return;
-      let level="ok";
+      let level;
       if(d.daysLeft<0)level="critical";
-      else if(d.daysLeft<=30)level="warning";
-      else if(d.daysLeft<=60)level="ok";
+      else if(d.daysLeft<=7)level="warning";
       else return;
       const icon=d.type.includes("VTV")?"🔍":d.type.includes("Seguro")?"🛡️":d.type.includes("GNC")?"⚡":"📋";
-      alerts.push({id:`${v.id}-${d.id}`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:d.type,level,icon,daysLeft:d.daysLeft,msg:d.daysLeft<0?`${d.type} vencida hace ${Math.abs(d.daysLeft)} días`:`${d.type} vence en ${d.daysLeft} días`});
+      alerts.push({id:`${v.id}-${d.id}`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:d.type,categoria:"documentacion",level,icon,daysLeft:d.daysLeft,msg:d.daysLeft<0?`${d.type} vencida hace ${Math.abs(d.daysLeft)} días`:`${d.type} vence en ${d.daysLeft} días`});
     });
     if(v.insumos&&v.insumos.length){
       const faltantes=v.insumos.filter(i=>i.presente===false);
       if(faltantes.length){
-        alerts.push({id:`${v.id}-insumos-falta`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:"Insumos",level:"critical",icon:"🩹",daysLeft:0,msg:`Faltan ${faltantes.length} insumo${faltantes.length>1?"s":""}: ${faltantes.map(f=>sanitizeHTML(f.nombre)).join(", ")}`});
+        alerts.push({id:`${v.id}-insumos-falta`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:"Insumos",categoria:"insumos",level:"critical",icon:"🩹",daysLeft:0,msg:`Faltan ${faltantes.length} insumo${faltantes.length>1?"s":""}: ${faltantes.map(f=>sanitizeHTML(f.nombre)).join(", ")}`});
       }
       if(!v.revisionHoy){
-        alerts.push({id:`${v.id}-insumos-sinrevisar`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:"Insumos",level:"warning",icon:"🩹",daysLeft:1,msg:"Sin confirmar la revisión de hoy"});
+        alerts.push({id:`${v.id}-insumos-sinrevisar`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:"Insumos",categoria:"insumos",level:"warning",icon:"🩹",daysLeft:1,msg:"Sin confirmar la revisión de hoy"});
       }
     }
   });
@@ -888,7 +894,7 @@ async function openEquipoModal(){
       lista.querySelectorAll("[data-remove-chofer]").forEach(b=>b.addEventListener("click",async()=>{
         if(!confirm("¿Quitar a esta persona del equipo? Deja de ver los vehículos de la flota."))return;
         await updateDoc(doc(db,"usuarios",b.dataset.removeChofer),{flotaId:b.dataset.removeChofer,rolFlota:"owner"});
-        showToast("Persona removida del equipo");openEquipoModal();
+        showToast("Persona removida del equipo");refreshEquipoMiembros();openEquipoModal();
       }));
     }
   }catch(e){lista.innerHTML='<div style="font-size:13px;color:var(--muted)">No se pudo cargar el equipo.</div>';}
@@ -906,6 +912,7 @@ document.addEventListener("click",e=>{
   }
 });
 document.getElementById("btn-theme-mob").addEventListener("click",()=>{toggleTheme();document.getElementById("topbar-user-menu").classList.add("hidden");});
+document.getElementById("btn-equipo-mob").addEventListener("click",()=>{document.getElementById("topbar-user-menu").classList.add("hidden");openEquipoModal();});
 document.getElementById("btn-logout-mob").addEventListener("click",async()=>{
   document.getElementById("topbar-user-menu").classList.add("hidden");
   if(unsubVehicles)unsubVehicles();
@@ -1008,8 +1015,10 @@ onAuthStateChanged(auth,async user=>{
 
 function aplicarPermisosFlota(){
   const esChofer=userDoc?.rolFlota==='chofer';
-  const teamBtn=document.getElementById('btn-equipo-sidebar');
-  if(teamBtn)teamBtn.classList.toggle('hidden',!userDoc?.features?.flotaHabilitada||esChofer);
+  const puedeEquipo=!!userDoc?.features?.flotaHabilitada&&!esChofer;
+  document.getElementById('btn-equipo-sidebar')?.classList.toggle('hidden',!puedeEquipo);
+  document.getElementById('btn-equipo-mob')?.classList.toggle('hidden',!puedeEquipo);
+  refreshEquipoMiembros();
 }
 
 // ── FIRESTORE ─────────────────────────────────────────────
@@ -1068,7 +1077,7 @@ function navigateTo(page,extra){
   const subEl=document.getElementById("topbar-subtitle");
   document.getElementById("topbar-car-anim").style.display=page==="dashboard"?"block":"none";
   if(page==="dashboard"){
-    const alertasActivas=vehicles.reduce((a,v)=>a+(v.docs||[]).filter(d=>d.daysLeft!==null&&d.daysLeft<30).length,0);
+    const alertasActivas=vehicles.reduce((a,v)=>a+(v.docs||[]).filter(d=>d.daysLeft!==null&&d.daysLeft<=7).length,0);
     subEl.textContent=`🚗 ${vehicles.length} vehículo${vehicles.length!==1?"s":""}${alertasActivas>0?` · ⚠ ${alertasActivas} alerta${alertasActivas!==1?"s":""}`:" · Todo en orden"}`;
   } else if(page==="vehicle-detail"){
     const veh=vehicles.find(v=>v.id===selectedVehicleId);
@@ -1145,7 +1154,7 @@ function renderVehicles(){
           <div class="vc-plate">${sanitizeHTML(v.plate)}</div>
           <hr class="vc-divider"/>
           <div class="vc-stats"><div><div class="vc-stat-val">${fmtNum(v.km)} km</div><div class="vc-stat-lbl">Kilometraje</div></div><div><div class="vc-stat-val">${v.fuel||"—"}${v.gnc?" + GNC":""}</div><div class="vc-stat-lbl">Combustible</div></div></div>
-          ${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<30)?`<div class="vc-alerts">${v.docs.filter(d=>d.daysLeft!==null&&d.daysLeft<30).map(d=>`<span class="alert-tag ${d.daysLeft<0?"bad":"warn"}">${d.type} ${daysLabel(d.daysLeft)}</span>`).join("")}</div>`:""}
+          ${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<=7)?`<div class="vc-alerts">${v.docs.filter(d=>d.daysLeft!==null&&d.daysLeft<=7).map(d=>`<span class="alert-tag ${d.daysLeft<0?"bad":"warn"}">${d.type} ${daysLabel(d.daysLeft)}</span>`).join("")}</div>`:""}
         </div>`).join("")}
       ${puedeEditar?'<div class="vehicle-card add-card" id="btn-add-vehicle-card"><span style="font-size:32px;opacity:.3">＋</span><span style="font-size:14px;font-weight:600">Agregar vehículo</span></div>':''}
     </div>`;
@@ -1182,7 +1191,7 @@ function renderVehicleDetail(){
     <div class="kpi-grid fade" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
       <div class="kpi-card"><div class="kpi-icon">🔧</div><div class="kpi-value" style="font-size:24px">${v.services.filter(s=>s.done).length}</div><div class="kpi-label">Services realizados</div></div>
       <div class="kpi-card"><div class="kpi-icon">💰</div><div class="kpi-value" style="font-size:22px">${fmtARS(totalCost)}</div><div class="kpi-label">Gasto total</div></div>
-      <div class="kpi-card"><div class="kpi-icon">📋</div><div class="kpi-value" style="font-size:24px;color:${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<0)?"var(--danger)":v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<30)?"var(--warn)":"var(--green)"}">${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<0)?"⚠":"✓"}</div><div class="kpi-label">Documentación</div></div>
+      <div class="kpi-card"><div class="kpi-icon">📋</div><div class="kpi-value" style="font-size:24px;color:${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<0)?"var(--danger)":v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<=7)?"var(--warn)":"var(--green)"}">${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<0)?"⚠":"✓"}</div><div class="kpi-label">Documentación</div></div>
     </div>
     <div class="tabs fade">
       <div class="tab${detailTab==="docs"?" active":""}" id="tab-docs">📋 Documentos</div>
@@ -1208,7 +1217,7 @@ function renderTabContent(v){
     renderInsumosTab(v,el);
   }else if(detailTab==="docs"){
     if(v.docs.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">Sin documentos</div><div class="empty-sub">Cargá el primero con el botón de arriba</div></div>';return;}
-    el.innerHTML=`<div class="docs-grid">${v.docs.map(d=>{const cls=d.daysLeft===null?"":d.daysLeft<0?"expired":d.daysLeft<30?"warning":"";return`<div class="doc-card ${cls}" data-doc-id="${d.id}" style="cursor:pointer" title="Tocá para editar"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div class="doc-icon">${docIcon(d.type)}</div><span style="font-size:14px;opacity:.5">✏️</span></div><div class="doc-name">${sanitizeHTML(d.type)}</div><div class="doc-issuer">${sanitizeHTML(d.issuer||"—")}</div>${d.policy?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:monospace">${sanitizeHTML(d.policy)}</div>`:""} ${d.expiry?`<div style="font-size:10px;color:var(--muted);margin-bottom:2px">VENCE</div><div style="font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(d.expiry)}</div><div class="doc-days" style="background:${d.daysLeft<0?"var(--danger-bg)":d.daysLeft<30?"var(--warn-bg)":"var(--green-bg)"};color:${daysColor(d.daysLeft)}">${daysLabel(d.daysLeft)}</div>`:`<div style="font-size:12px;color:var(--muted);font-style:italic">Sin fecha de vencimiento</div>`}${d.paid>0?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Pagado: <strong style="color:var(--text)">${fmtARS(d.paid)}</strong></div>`:""}</div>`;}).join("")}</div>`;
+    el.innerHTML=`<div class="docs-grid">${v.docs.map(d=>{const cls=d.daysLeft===null?"":d.daysLeft<0?"expired":d.daysLeft<=7?"warning":"";return`<div class="doc-card ${cls}" data-doc-id="${d.id}" style="cursor:pointer" title="Tocá para editar"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div class="doc-icon">${docIcon(d.type)}</div><span style="font-size:14px;opacity:.5">✏️</span></div><div class="doc-name">${sanitizeHTML(d.type)}</div><div class="doc-issuer">${sanitizeHTML(d.issuer||"—")}</div>${d.policy?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:monospace">${sanitizeHTML(d.policy)}</div>`:""} ${d.expiry?`<div style="font-size:10px;color:var(--muted);margin-bottom:2px">VENCE</div><div style="font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(d.expiry)}</div><div class="doc-days" style="background:${d.daysLeft<0?"var(--danger-bg)":d.daysLeft<=7?"var(--warn-bg)":"var(--green-bg)"};color:${daysColor(d.daysLeft)}">${daysLabel(d.daysLeft)}</div>`:`<div style="font-size:12px;color:var(--muted);font-style:italic">Sin fecha de vencimiento</div>`}${d.paid>0?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Pagado: <strong style="color:var(--text)">${fmtARS(d.paid)}</strong></div>`:""}</div>`;}).join("")}</div>`;
     el.querySelectorAll("[data-doc-id]").forEach(card=>card.addEventListener("click",()=>{
       const doc_=v.docs.find(d=>d.id===card.dataset.docId);if(doc_)openAddDocModal(v,doc_);
     }));
@@ -1316,24 +1325,40 @@ function renderAlerts(){
   const critical=alerts.filter(a=>a.level==="critical");
   const warning=alerts.filter(a=>a.level==="warning");
   const okAlerts=alerts.filter(a=>a.level==="ok");
+  const docAlerts=alerts.filter(a=>a.categoria==="documentacion");
+  const insumoAlerts=alerts.filter(a=>a.categoria==="insumos");
+  const hayInsumos=vehicles.some(v=>v.insumos&&v.insumos.length>0);
   function sectionHTML(title,color,items){
     if(!items.length)return"";
-    return`<div style="font-size:13px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;margin-top:24px">${title}</div><div class="alerts-list">${items.map(a=>`<div class="alert-row ${a.level}" data-vid="${a.vehicleId}" style="cursor:pointer"><span class="alert-icon">${a.icon}</span><div class="alert-info"><div class="alert-title">${a.msg}</div><div class="alert-sub"><span style="font-family:monospace;font-size:11px;letter-spacing:1px">${a.plate}</span><span style="margin:0 8px;opacity:.4">·</span><span>${a.vehicle}</span></div></div><div class="alert-days"><div class="alert-days-num" style="color:${daysColor(a.daysLeft)}">${a.daysLeft!==null?Math.abs(a.daysLeft):"—"}</div><div class="alert-days-lbl">${a.daysLeft<0?"días exp.":"días rest."}</div></div></div>`).join("")}</div>`;
+    return`<div style="font-size:12px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;margin-top:18px">${title}</div><div class="alerts-list">${items.map(a=>`<div class="alert-row ${a.level}" data-vid="${a.vehicleId}" style="cursor:pointer"><span class="alert-icon">${a.icon}</span><div class="alert-info"><div class="alert-title">${a.msg}</div><div class="alert-sub"><span style="font-family:monospace;font-size:11px;letter-spacing:1px">${a.plate}</span><span style="margin:0 8px;opacity:.4">·</span><span>${a.vehicle}</span></div></div><div class="alert-days"><div class="alert-days-num" style="color:${daysColor(a.daysLeft)}">${a.daysLeft!==null?Math.abs(a.daysLeft):"—"}</div><div class="alert-days-lbl">${a.daysLeft<0?"días exp.":"días rest."}</div></div></div>`).join("")}</div>`;
+  }
+  function categoriaBlock(icono,titulo,items){
+    const c=items.filter(a=>a.level==="critical"),w=items.filter(a=>a.level==="warning"),o=items.filter(a=>a.level==="ok");
+    return`<div class="card" style="padding:18px 20px">
+      <div class="sec-title" style="margin-bottom:4px">${icono} ${titulo}</div>
+      ${items.length===0?'<div style="font-size:13px;color:var(--muted);padding:20px 0;text-align:center">✅ Sin alertas</div>':`
+        ${sectionHTML("🚨 Acción inmediata","var(--danger)",c)}
+        ${sectionHTML("⚠️ Próximos a vencer","var(--warn)",w)}
+        ${sectionHTML("✅ En orden","var(--green)",o)}
+      `}
+    </div>`;
   }
   el.innerHTML=`
     <div class="summary-bar fade">
       <div class="summary-stat"><div class="summary-stat-val" style="color:var(--danger)">${critical.length}</div><div class="summary-stat-lbl">Críticas</div></div>
       <div class="summary-divider"></div>
       <div class="summary-stat"><div class="summary-stat-val" style="color:var(--warn)">${warning.length}</div><div class="summary-stat-lbl">Advertencias</div></div>
-      <div class="summary-divider"></div>
-      <div class="summary-stat"><div class="summary-stat-val" style="color:var(--green)">${okAlerts.length}</div><div class="summary-stat-lbl">Al día</div></div>
+      ${userDoc?.features?.flotaHabilitada&&esOwnerFlota()?`<div class="summary-divider"></div>
+      <div class="summary-stat" id="summary-equipo" style="cursor:pointer"><div class="summary-stat-val" style="color:var(--blue)">${equipoMiembros??"—"}</div><div class="summary-stat-lbl">👥 Mi equipo</div></div>`:""}
       <div style="margin-left:auto;align-self:center"><div style="font-size:12px;color:var(--muted)">Tocá una alerta para ver el vehículo</div></div>
     </div>
-    ${alerts.length===0?'<div class="empty"><div class="empty-icon">🔔</div><div class="empty-msg">Sin alertas por ahora</div><div class="empty-sub">Cargá documentos con fecha de vencimiento para que aparezcan acá</div></div>':""}
-    ${sectionHTML("🚨 Requieren acción inmediata","var(--danger)",critical)}
-    ${sectionHTML("⚠️ Próximos a vencer","var(--warn)",warning)}
-    ${sectionHTML("✅ En orden","var(--green)",okAlerts)}`;
+    ${alerts.length===0&&!hayInsumos?'<div class="empty"><div class="empty-icon">🔔</div><div class="empty-msg">Sin alertas por ahora</div><div class="empty-sub">Cargá documentos con fecha de vencimiento para que aparezcan acá</div></div>':
+    hayInsumos?`<div class="alerts-two-col fade" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">
+      ${categoriaBlock("📋","Documentación",docAlerts)}
+      ${categoriaBlock("🩹","Insumos",insumoAlerts)}
+    </div>`:`<div class="fade" style="margin-top:20px">${categoriaBlock("📋","Documentación",docAlerts)}</div>`}`;
   el.querySelectorAll(".alert-row[data-vid]").forEach(row=>{row.addEventListener("click",()=>navigateTo("vehicle-detail",row.dataset.vid));});
+  el.querySelector("#summary-equipo")?.addEventListener("click",openEquipoModal);
 }
 
 // ── MODALES ───────────────────────────────────────────────
