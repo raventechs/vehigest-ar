@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.6.2
+  RODIX — v1.6.3
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.6.1: agregado console.log de diagnóstico
-  (userDoc, flotaOwnerUid, uid) justo antes de la consulta de
-  vehículos, para identificar por qué Firestore sigue negando el
-  permiso de lectura tras el modelo de flota.
+  Cambios respecto a v1.6.2: el panel admin no podía ver vehículos
+  ni usuarios de otros clientes tras pasar al modelo de flota,
+  porque las reglas solo dejaban ver lo de la propia flota. Se
+  agregó el bypass de admin (esAdmin()) a la lectura de vehículos
+  y sus subcolecciones. También se blindó loadAdminVehiculos con
+  try/catch para que un error de permisos no rompa la consola.
+  IMPORTANTE: requiere volver a pegar las reglas de Firestore
+  completas (cambiaron las reglas de "read" de vehicles/docs/
+  services/insumos/revisiones).
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -655,18 +660,23 @@ function closeAdminPanel(){
 async function loadAdminVehiculos(){
   const c=document.getElementById('admin-vehiculos-list');
   c.innerHTML=spinnerHTML();
-  const snap=await getDocs(collection(db,'vehicles'));
-  if(snap.empty){c.innerHTML='<div class="empty"><div class="empty-msg">Sin vehículos</div></div>';return;}
-  c.innerHTML=snap.docs.map(d=>{
-    const v=d.data();
-    return`<div class="admin-card">
-      <div class="admin-card-title">${sanitizeHTML(v.brand||'')} ${sanitizeHTML(v.model||'')} — ${sanitizeHTML(v.plate||'')}</div>
-      <div class="admin-card-sub">Usuario: ${sanitizeHTML(v.uid||'—')}</div>
-      <div class="admin-card-actions">
-        <button class="btn-admin-del" data-id="${d.id}">🗑️ Eliminar</button>
-      </div>
-    </div>`;
-  }).join('');
+  try{
+    const snap=await getDocs(collection(db,'vehicles'));
+    if(snap.empty){c.innerHTML='<div class="empty"><div class="empty-msg">Sin vehículos</div></div>';return;}
+    c.innerHTML=snap.docs.map(d=>{
+      const v=d.data();
+      return`<div class="admin-card">
+        <div class="admin-card-title">${sanitizeHTML(v.brand||'')} ${sanitizeHTML(v.model||'')} — ${sanitizeHTML(v.plate||'')}</div>
+        <div class="admin-card-sub">Usuario: ${sanitizeHTML(v.uid||'—')}</div>
+        <div class="admin-card-actions">
+          <button class="btn-admin-del" data-id="${d.id}">🗑️ Eliminar</button>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    console.error("Error cargando vehículos admin:",e);
+    c.innerHTML=`<div class="empty"><div class="empty-msg">No se pudo cargar la lista</div><div class="empty-sub">${sanitizeHTML(e.code||e.message||'')}</div></div>`;
+  }
 }
 
 async function loadAdminUsuarios(){
@@ -1462,7 +1472,7 @@ service cloud.firestore {
     }
 
     match /vehicles/{vehicleId} {
-      allow read: if request.auth != null && resource.data.uid == miFlotaId();
+      allow read: if request.auth != null && (resource.data.uid == miFlotaId() || esAdmin());
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid && !esChofer();
       allow update: if request.auth != null && resource.data.uid == miFlotaId() && !esChofer();
       allow delete: if request.auth != null && (
@@ -1470,33 +1480,39 @@ service cloud.firestore {
       );
 
       match /docs/{docId} {
-        allow read: if request.auth != null &&
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
         allow write, delete: if request.auth != null && !esChofer() && (
           get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
         );
       }
       match /services/{serviceId} {
-        allow read: if request.auth != null &&
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
         allow write, delete: if request.auth != null && !esChofer() && (
           get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
         );
       }
       match /insumos/{insumoId} {
-        allow read: if request.auth != null &&
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
-        allow update: if request.auth != null &&
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
+        allow update: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
         allow create, delete: if request.auth != null && !esChofer() && (
           get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
         );
       }
       match /revisiones/{revisionId} {
-        allow read: if request.auth != null &&
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
-        allow create: if request.auth != null &&
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow read: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
+        allow create: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
         allow update, delete: if request.auth != null && !esChofer() && (
           get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
         );
