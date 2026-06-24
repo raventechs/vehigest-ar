@@ -1,19 +1,14 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.6
+  RODIX — v1.6.1
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.5: nuevo modelo de "equipo / flota" (flag
-  features.flotaHabilitada por cliente). El dueño genera un link de
-  invitación desde "Mi equipo" (sidebar); quien lo abre y se loguea
-  queda asociado a la flota como "chofer": ve los vehículos, puede
-  tildar el checklist de insumos y confirmar la revisión diaria,
-  pero NO puede agregar/editar/borrar vehículos, documentos,
-  services ni ítems del checklist. El dueño puede quitar miembros
-  desde el mismo panel.
-  IMPORTANTE: requiere actualizar las reglas de Firestore (ver
-  bloque al final del archivo) — cambia el modelo de permisos por
-  completo respecto a v1.5.
+  Cambios respecto a v1.6: el listener de vehículos ahora muestra
+  el error real (en pantalla y como toast) si Firestore niega el
+  permiso, en vez de quedarse girando para siempre sin explicación.
+  Esto es para diagnosticar por qué no cargaban los vehículos tras
+  pasar al modelo de flota — subir esta versión y mirar qué dice
+  el cartel de error exacto.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -1028,6 +1023,14 @@ function startListening(){
       return{...v,docs:docsData,services:svcData,insumos:insumosData,revisionHoy:ultimaRevision,status:calcVehicleStatus(docsData)};
     }));
     vehicles=vList;loading=false;renderCurrentPage();updateAlertBadge();
+  },err=>{
+    console.error("Error cargando vehículos:",err);
+    loading=false;
+    showToast("Error al cargar vehículos: "+(err.code||err.message),"error");
+    const el=document.getElementById("page-vehicles");
+    if(el)el.innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-msg">No se pudieron cargar los vehículos</div><div class="empty-sub">${sanitizeHTML(err.code||err.message||"")}</div></div>`;
+    const elD=document.getElementById("page-dashboard");
+    if(elD&&currentPage==="dashboard")elD.innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-msg">No se pudieron cargar los vehículos</div><div class="empty-sub">${sanitizeHTML(err.code||err.message||"")}</div></div>`;
   });
 }
 
