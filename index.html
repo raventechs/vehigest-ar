@@ -1,4 +1,15 @@
 <!DOCTYPE html>
+<!--
+  ════════════════════════════════════════════════════════════
+  RODIX — v1.1
+  Fecha de esta versión: 2026-06-24
+  Cambios respecto a v1.0: corrección de seguridad en reglas de
+  Firestore (subcolecciones docs/services ahora validan dueño
+  del vehículo, no solo "usuario logueado").
+  Subir a producción: reemplazar el archivo en GitHub + pegar
+  las reglas nuevas en Firebase Console → Firestore → Reglas.
+  ════════════════════════════════════════════════════════════
+-->
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
@@ -1194,6 +1205,7 @@ document.getElementById("btn-google").addEventListener("click",async()=>{
 
 <!--
 FIRESTORE SECURITY RULES — Firebase Console > Firestore > Reglas
+(v1.1 — corregido: docs/services ahora validan dueño del vehículo)
 
 rules_version = '2';
 service cloud.firestore {
@@ -1208,10 +1220,16 @@ service cloud.firestore {
       );
 
       match /docs/{docId} {
-        allow read, write, delete: if request.auth != null;
+        allow read, write, delete: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == request.auth.uid ||
+          request.auth.token.email == 'rgaraventa@gmail.com'
+        );
       }
       match /services/{serviceId} {
-        allow read, write, delete: if request.auth != null;
+        allow read, write, delete: if request.auth != null && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == request.auth.uid ||
+          request.auth.token.email == 'rgaraventa@gmail.com'
+        );
       }
     }
 
