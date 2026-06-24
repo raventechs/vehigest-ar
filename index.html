@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.6.7
+  RODIX — v1.6.8
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.6.6: en la pantalla de Alertas, en el lugar
-  donde estaba "Al día" ahora aparece "👥 Mi equipo" con la cantidad
-  de personas con acceso (choferes + el dueño), solo si el cliente
-  tiene el módulo de flota habilitado y es el dueño. Tocarlo abre
-  directo el panel de "Mi equipo".
+  Cambios respecto a v1.6.7: la tarjeta "Al día" del Dashboard
+  (Inicio, 4 tarjetas) también se transforma en "👥 Equipo" cuando
+  el cliente tiene la flota habilitada — mismo criterio que ya
+  aplicaba en la pantalla de Alertas. Sin flota activa, sigue
+  mostrando "Al día / Sin vencimientos" como siempre.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -544,7 +544,7 @@ async function refreshEquipoMiembros(){
     const snap=await getDocs(query(collection(db,'usuarios'),where('flotaId','==',currentUser.uid),where('rolFlota','==','chofer')));
     equipoMiembros=snap.size+1;
   }catch(e){equipoMiembros=null;}
-  if(currentPage==="alerts")renderCurrentPage();
+  if(currentPage==="alerts"||currentPage==="dashboard")renderCurrentPage();
 }
 
 // ── TEMA ──────────────────────────────────────────────────
@@ -1112,7 +1112,9 @@ function renderDashboard(){
   el.innerHTML=`
     <div class="kpi-grid fade">
       <div class="kpi-card"><div class="kpi-top"><span class="kpi-icon">🚗</span><span class="kpi-badge info">Flota</span></div><div class="kpi-value">${vehicles.length}</div><div class="kpi-label">Vehículos totales</div></div>
-      <div class="kpi-card"><div class="kpi-top"><span class="kpi-icon">✅</span><span class="kpi-badge ok">Al día</span></div><div class="kpi-value" style="color:var(--green)">${vehicles.filter(v=>v.status==="ok").length}</div><div class="kpi-label">Sin vencimientos</div></div>
+      ${userDoc?.features?.flotaHabilitada&&esOwnerFlota()?
+        `<div class="kpi-card" id="kpi-equipo" style="cursor:pointer"><div class="kpi-top"><span class="kpi-icon">👥</span><span class="kpi-badge info">Equipo</span></div><div class="kpi-value" style="color:var(--blue)">${equipoMiembros??"—"}</div><div class="kpi-label">Con acceso</div></div>`
+        :`<div class="kpi-card"><div class="kpi-top"><span class="kpi-icon">✅</span><span class="kpi-badge ok">Al día</span></div><div class="kpi-value" style="color:var(--green)">${vehicles.filter(v=>v.status==="ok").length}</div><div class="kpi-label">Sin vencimientos</div></div>`}
       <div class="kpi-card"><div class="kpi-top"><span class="kpi-icon">⚠️</span><span class="kpi-badge warn">Atención</span></div><div class="kpi-value" style="color:var(--warn)">${vehicles.filter(v=>v.status==="warn").length}</div><div class="kpi-label">Próximos a vencer</div></div>
       <div class="kpi-card"><div class="kpi-top"><span class="kpi-icon">🚨</span><span class="kpi-badge bad">Crítico</span></div><div class="kpi-value" style="color:var(--danger)">${vehicles.filter(v=>v.status==="bad").length}</div><div class="kpi-label">Requieren acción</div></div>
     </div>
@@ -1134,6 +1136,7 @@ function renderDashboard(){
     </div>`}`;
   el.querySelector("#dash-ver-flota")?.addEventListener("click",()=>navigateTo("vehicles"));
   el.querySelector("#dash-ver-alertas")?.addEventListener("click",()=>navigateTo("alerts"));
+  el.querySelector("#kpi-equipo")?.addEventListener("click",openEquipoModal);
   el.querySelectorAll(".vehicle-card[data-vid]").forEach(card=>{card.addEventListener("click",()=>navigateTo("vehicle-detail",card.dataset.vid));});
   el.querySelectorAll(".alert-row[data-vid]").forEach(row=>{row.addEventListener("click",()=>navigateTo("vehicle-detail",row.dataset.vid));});
 }
