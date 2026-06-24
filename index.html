@@ -1,14 +1,12 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.6.1
+  RODIX — v1.6.2
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.6: el listener de vehículos ahora muestra
-  el error real (en pantalla y como toast) si Firestore niega el
-  permiso, en vez de quedarse girando para siempre sin explicación.
-  Esto es para diagnosticar por qué no cargaban los vehículos tras
-  pasar al modelo de flota — subir esta versión y mirar qué dice
-  el cartel de error exacto.
+  Cambios respecto a v1.6.1: agregado console.log de diagnóstico
+  (userDoc, flotaOwnerUid, uid) justo antes de la consulta de
+  vehículos, para identificar por qué Firestore sigue negando el
+  permiso de lectura tras el modelo de flota.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -1007,6 +1005,7 @@ function aplicarPermisosFlota(){
 // ── FIRESTORE ─────────────────────────────────────────────
 function startListening(){
   loading=true;
+  console.log("DIAGNÓSTICO RODIX → userDoc:",JSON.stringify(userDoc),"flotaOwnerUid:",flotaOwnerUid(),"currentUser.uid:",currentUser?.uid);
   const q=query(collection(db,"vehicles"),where("uid","==",flotaOwnerUid()),orderBy("createdAt","desc"));
   unsubVehicles=onSnapshot(q,async snap=>{
     const checklistOn=!!userDoc?.features?.checklistHabilitado;
