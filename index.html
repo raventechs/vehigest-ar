@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.8.1
+  RODIX — v1.8.2
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.8: el refresco automático pasó de 30 a 60
-  segundos, para consumir menos datos/recursos según lo pedido.
+  Cambios respecto a v1.8.1: el chofer invitado ahora solo ve las
+  alertas de "🩹 Insumos" (en Dashboard y en Alertas) — ya no ve
+  vencimientos de VTV/seguro/service de la flota, que son cosas
+  administrativas del dueño. Sigue viendo todos los vehículos en
+  la lista, solo se filtra lo que aparece en las alertas.
+  No requiere cambios en las reglas de Firestore.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -1136,7 +1140,7 @@ function renderDashboard(){
   const el=document.getElementById("page-dashboard");
   if(loading){el.innerHTML=spinnerHTML();return;}
   const alerts=buildAlerts(vehicles);
-  const topAlerts=alerts.filter(a=>a.level!=="ok").slice(0,5);
+  const topAlerts=alerts.filter(a=>a.level!=="ok"&&(esOwnerFlota()||a.categoria==="insumos")).slice(0,5);
   el.innerHTML=`
     <div class="kpi-grid fade">
       <div class="kpi-card"><div class="kpi-top"><span class="kpi-icon">🚗</span><span class="kpi-badge info">Flota</span></div><div class="kpi-value">${vehicles.length}</div><div class="kpi-label">Vehículos totales</div></div>
@@ -1354,13 +1358,14 @@ function openInsumoModal(v,existing=null){
 function renderAlerts(){
   const el=document.getElementById("page-alerts");
   if(loading){el.innerHTML=spinnerHTML();return;}
-  const alerts=buildAlerts(vehicles);
+  const alertsAll=buildAlerts(vehicles);
+  const alerts=esOwnerFlota()?alertsAll:alertsAll.filter(a=>a.categoria==="insumos");
   const critical=alerts.filter(a=>a.level==="critical");
   const warning=alerts.filter(a=>a.level==="warning");
   const okAlerts=alerts.filter(a=>a.level==="ok");
   const docAlerts=alerts.filter(a=>a.categoria==="documentacion");
   const insumoAlerts=alerts.filter(a=>a.categoria==="insumos");
-  const hayInsumos=vehicles.some(v=>v.insumos&&v.insumos.length>0);
+  const hayInsumos=esOwnerFlota()&&vehicles.some(v=>v.insumos&&v.insumos.length>0);
   function sectionHTML(title,color,items){
     if(!items.length)return"";
     return`<div style="font-size:12px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;margin-top:18px">${title}</div><div class="alerts-list">${items.map(a=>`<div class="alert-row ${a.level}" data-vid="${a.vehicleId}" style="cursor:pointer"><span class="alert-icon">${a.icon}</span><div class="alert-info"><div class="alert-title">${a.msg}</div><div class="alert-sub"><span style="font-family:monospace;font-size:11px;letter-spacing:1px">${a.plate}</span><span style="margin:0 8px;opacity:.4">·</span><span>${a.vehicle}</span></div></div><div class="alert-days"><div class="alert-days-num" style="color:${daysColor(a.daysLeft)}">${a.daysLeft!==null?Math.abs(a.daysLeft):"—"}</div><div class="alert-days-lbl">${a.daysLeft<0?"días exp.":"días rest."}</div></div></div>`).join("")}</div>`;
@@ -1385,7 +1390,8 @@ function renderAlerts(){
       <div class="summary-stat" id="summary-equipo" style="cursor:pointer"><div class="summary-stat-val" style="color:var(--blue)">${equipoMiembros??"—"}</div><div class="summary-stat-lbl">👥 Mi equipo</div></div>`:""}
       <div style="margin-left:auto;align-self:center"><div style="font-size:12px;color:var(--muted)">Tocá una alerta para ver el vehículo</div></div>
     </div>
-    ${alerts.length===0&&!hayInsumos?'<div class="empty"><div class="empty-icon">🔔</div><div class="empty-msg">Sin alertas por ahora</div><div class="empty-sub">Cargá documentos con fecha de vencimiento para que aparezcan acá</div></div>':
+    ${alerts.length===0?'<div class="empty"><div class="empty-icon">🔔</div><div class="empty-msg">Sin alertas por ahora</div><div class="empty-sub">Cargá documentos con fecha de vencimiento para que aparezcan acá</div></div>':
+    !esOwnerFlota()?`<div class="fade" style="margin-top:20px">${categoriaBlock("🩹","Insumos",insumoAlerts)}</div>`:
     hayInsumos?`<div class="alerts-two-col fade" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">
       ${categoriaBlock("📋","Documentación",docAlerts)}
       ${categoriaBlock("🩹","Insumos",insumoAlerts)}
