@@ -1,12 +1,16 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.6.9
+  RODIX — v1.7
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.6.8: en "Mi equipo", junto al link de
-  invitación, se agregó un botón "📲 WhatsApp" que abre WhatsApp
-  con el mensaje y el link ya preparados para enviar directo,
-  sin tener que copiar y pegar a mano.
+  Cambios respecto a v1.6.9: el chofer invitado ya NO ve las
+  pestañas de Documentos ni Historial de service en el detalle del
+  vehículo (antes las veía en solo lectura) — ahora entra directo
+  a la pestaña Insumos, que es lo único que le compete. También se
+  agregó una marca con la inicial de quien tildó/editó cada insumo
+  por última vez (igual que en MiAgenda), con el email completo
+  visible al pasar el mouse o mantener tocado.
+  No requiere cambios en las reglas de Firestore.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -1194,24 +1198,25 @@ function renderVehicleDetail(){
         ${esOwnerFlota()?`<button class="btn-sm" id="btn-edit-vehicle">✏️ Editar</button><button class="btn-sm" id="btn-add-doc">＋ Documento</button><button class="btn-sm gold" id="btn-add-service">＋ Service</button>`:""}
       </div>
     </div>
-    <div class="kpi-grid fade" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
+    ${esOwnerFlota()?`<div class="kpi-grid fade" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
       <div class="kpi-card"><div class="kpi-icon">🔧</div><div class="kpi-value" style="font-size:24px">${v.services.filter(s=>s.done).length}</div><div class="kpi-label">Services realizados</div></div>
       <div class="kpi-card"><div class="kpi-icon">💰</div><div class="kpi-value" style="font-size:22px">${fmtARS(totalCost)}</div><div class="kpi-label">Gasto total</div></div>
       <div class="kpi-card"><div class="kpi-icon">📋</div><div class="kpi-value" style="font-size:24px;color:${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<0)?"var(--danger)":v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<=7)?"var(--warn)":"var(--green)"}">${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<0)?"⚠":"✓"}</div><div class="kpi-label">Documentación</div></div>
-    </div>
+    </div>`:""}
     <div class="tabs fade">
-      <div class="tab${detailTab==="docs"?" active":""}" id="tab-docs">📋 Documentos</div>
-      <div class="tab${detailTab==="services"?" active":""}" id="tab-services">🔧 Historial de service</div>
-      ${userDoc?.features?.checklistHabilitado?`<div class="tab${detailTab==="insumos"?" active":""}" id="tab-insumos">🩹 Insumos</div>`:""}
+      ${esOwnerFlota()?`<div class="tab${detailTab==="docs"?" active":""}" id="tab-docs">📋 Documentos</div>
+      <div class="tab${detailTab==="services"?" active":""}" id="tab-services">🔧 Historial de service</div>`:""}
+      ${userDoc?.features?.checklistHabilitado?`<div class="tab${detailTab==="insumos"||!esOwnerFlota()?" active":""}" id="tab-insumos">🩹 Insumos</div>`:""}
     </div>
     <div id="tab-content" class="fade"></div>`;
   el.querySelector("#btn-back-vehicles").addEventListener("click",()=>navigateTo("vehicles"));
   el.querySelector("#btn-edit-vehicle")?.addEventListener("click",()=>openAddVehicleModal(v));
   el.querySelector("#btn-add-doc")?.addEventListener("click",()=>openAddDocModal(v));
   el.querySelector("#btn-add-service")?.addEventListener("click",()=>openAddServiceModal(v));
-  el.querySelector("#tab-docs").addEventListener("click",()=>{detailTab="docs";renderTabContent(v);});
-  el.querySelector("#tab-services").addEventListener("click",()=>{detailTab="services";renderTabContent(v);});
+  el.querySelector("#tab-docs")?.addEventListener("click",()=>{detailTab="docs";renderTabContent(v);});
+  el.querySelector("#tab-services")?.addEventListener("click",()=>{detailTab="services";renderTabContent(v);});
   el.querySelector("#tab-insumos")?.addEventListener("click",()=>{detailTab="insumos";renderTabContent(v);});
+  if(!esOwnerFlota())detailTab="insumos";
   renderTabContent(v);
 }
 
@@ -1261,6 +1266,7 @@ function renderInsumosTab(v,el){
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
           <input type="checkbox" data-insumo-id="${i.id}" ${i.presente!==false?"checked":""} style="width:18px;height:18px"/>
           <span style="flex:1;font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(i.nombre)}</span>
+          ${i.ultimoCambioPor?`<span title="Última modificación: ${sanitizeHTML(i.ultimoCambioPor)}" style="width:20px;height:20px;border-radius:50%;background:var(--gold);color:#1B2A4A;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">${sanitizeHTML(i.ultimoCambioPor[0].toUpperCase())}</span>`:''}
         </label>
         <div style="font-size:12px;color:var(--muted);margin-top:6px">Cantidad: <strong style="color:var(--text)">${i.cantidad}</strong></div>
         ${puedeEditar?`<div style="display:flex;gap:6px;margin-top:8px">
@@ -1273,7 +1279,7 @@ function renderInsumosTab(v,el){
     </div>`;
   el.querySelectorAll("[data-insumo-id]").forEach(chk=>{
     chk.addEventListener("change",async()=>{
-      await updateDoc(doc(db,"vehicles",v.id,"insumos",chk.dataset.insumoId),{presente:chk.checked});
+      await updateDoc(doc(db,"vehicles",v.id,"insumos",chk.dataset.insumoId),{presente:chk.checked,ultimoCambioPor:currentUser.email,ultimoCambioFecha:serverTimestamp()});
     });
   });
   el.querySelectorAll("[data-edit-insumo]").forEach(btn=>{
