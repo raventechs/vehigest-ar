@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.1
+  RODIX — v1.4
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.0: corrección de seguridad en reglas de
-  Firestore (subcolecciones docs/services ahora validan dueño
-  del vehículo, no solo "usuario logueado").
+  Cambios respecto a v1.3: la rueda de la marca ya no es un aro fino
+  (parecía rueda de bici) — ahora es una llanta con banda de rodadura
+  oscura, rayos dorados y buje, más acorde a un auto. Se mantiene el
+  auto que cruza el login.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -109,6 +110,12 @@ input,select,button,textarea{font-family:var(--font)}
 .btn-logout:hover{border-color:rgba(255,255,255,.3);color:#fff}
 .btn-theme-sidebar{width:100%;margin-top:6px;padding:9px;background:transparent;border:1px solid rgba(255,255,255,.15);border-radius:var(--radius-sm);color:rgba(255,255,255,.5);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-theme-sidebar:hover{border-color:rgba(255,255,255,.3);color:#fff}
+
+/* ══ RUEDA ANIMADA EN LA MARCA ═══════════════════════════════ */
+.brand-wheel{display:inline-block;width:.62em;height:.62em;border-radius:50%;vertical-align:-.06em;border:.08em solid #1a1a1a;background:repeating-conic-gradient(#f0b84a 0deg 14deg,#1a1a1a 14deg 36deg);position:relative;animation:wheelSpin 1.8s linear infinite}
+.brand-wheel::after{content:"";position:absolute;inset:30%;background:#1a1a1a;border-radius:50%;border:2px solid #f0b84a}
+@keyframes wheelSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion: reduce){.brand-wheel{animation:none}}
 
 /* ══ MAIN ══════════════════════════════════════════════════ */
 .main{flex:1;overflow-y:auto;min-width:0}
@@ -302,7 +309,9 @@ input,select,button,textarea{font-family:var(--font)}
   .field-row{grid-template-columns:1fr}
   .dash-two-col{grid-template-columns:1fr!important}
   .topbar{padding:14px 16px}
+  .topbar-logo-mob{display:flex!important}
 }
+.topbar-logo-mob{display:none;width:30px;height:30px;background:var(--navy);border-radius:8px;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 @media(min-width:769px){.mob-nav{display:none!important}}
 /* ══ DEMO VENCIDA ══════════════════════════════════════════ */
 #demo-wall{position:fixed;inset:0;background:linear-gradient(145deg,var(--navy),#1a3060);display:none;align-items:center;justify-content:center;z-index:9990;padding:24px}
@@ -340,7 +349,7 @@ input,select,button,textarea{font-family:var(--font)}
   <div class="login-card">
     <div class="login-brand">
       <div class="login-brand-icon" id="login-logo"><svg width="24" height="24" viewBox="0 0 48 48"><path d="M7 28l3-10c.6-2 2.4-3.3 4.5-3.3h19c2.1 0 3.9 1.3 4.5 3.3l3 10v8a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1H13v1a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-8z" fill="#fff"/><circle cx="14" cy="32" r="3.2" fill="#0f1e3d"/><circle cx="34" cy="32" r="3.2" fill="#0f1e3d"/><rect x="11" y="16.5" width="26" height="8" rx="2" fill="rgba(15,30,61,.35)"/></svg></div>
-      <div class="login-brand-name">Ro<span>dix</span></div>
+      <div class="login-brand-name">R<span class="brand-wheel"></span><span>dix</span></div>
     </div>
     <div class="login-title">Bienvenido</div>
     <div class="login-sub" id="login-sub-text">Ingresá a tu cuenta para gestionar tu flota</div>
@@ -362,10 +371,10 @@ input,select,button,textarea{font-family:var(--font)}
   <nav class="sidebar">
     <div class="sidebar-brand">
       <div class="sidebar-brand-icon" id="sidebar-logo">🚗</div>
-      <div class="sidebar-brand-name">Ro<span>dix</span></div>
+      <div class="sidebar-brand-name">R<span class="brand-wheel"></span><span>dix</span></div>
     </div>
     <div class="sidebar-section">Principal</div>
-    <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>Dashboard</div>
+    <div class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>Inicio</div>
     <div class="nav-item" data-page="vehicles"><span class="nav-icon">🚗</span>Vehículos</div>
     <div class="nav-item" data-page="alerts"><span class="nav-icon">🔔</span>Alertas<span id="sidebar-badge" class="nav-badge hidden">0</span></div>
     <div class="sidebar-bottom">
@@ -381,8 +390,9 @@ input,select,button,textarea{font-family:var(--font)}
   <div class="main">
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:10px">
+        <div id="topbar-logo-mob" class="topbar-logo-mob" style="cursor:pointer;user-select:none">🚗</div>
         <div>
-          <span id="topbar-title" class="topbar-title">Dashboard</span>
+          <span id="topbar-title" class="topbar-title">Inicio</span>
           <div id="topbar-subtitle" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
         </div>
         <div id="topbar-car-anim" style="width:40px;height:20px;overflow:hidden;position:relative;display:none">
@@ -472,7 +482,7 @@ input,select,button,textarea{font-family:var(--font)}
 <!-- MOBILE NAV -->
 <div class="mob-nav" id="mob-nav">
   <div class="mob-nav-items">
-    <div class="mob-nav-item active" data-page="dashboard"><span class="mob-icon">📊</span>Dashboard</div>
+    <div class="mob-nav-item active" data-page="dashboard"><span class="mob-icon">📊</span>Inicio</div>
     <div class="mob-nav-item" data-page="vehicles"><span class="mob-icon">🚗</span>Vehículos</div>
     <div class="mob-nav-item" data-page="alerts"><span class="mob-icon">🔔</span>Alertas<span class="mob-badge hidden" id="mob-alert-badge">0</span></div>
   </div>
@@ -504,7 +514,7 @@ function sanitizeHTML(str){const d=document.createElement('div');d.textContent=s
 
 // ── CONSTANTES ────────────────────────────────────────────
 const SERVICE_CATALOG=["Cambio de aceite","Filtro de aire","Filtro de combustible","Frenos delanteros","Frenos traseros","Cubiertas","Alineación y balanceo","Correa de distribución","Bujías","Amortiguadores","Revisión GNC anual","Cambio de cubiertas","Servicio mayor","Servicio menor","Otro"];
-const PAGE_TITLES={dashboard:"Dashboard",vehicles:"Vehículos","vehicle-detail":"",alerts:"Alertas"};
+const PAGE_TITLES={dashboard:"Inicio",vehicles:"Vehículos","vehicle-detail":"",alerts:"Alertas"};
 
 // ── ESTADO ────────────────────────────────────────────────
 let vehicles=[],loading=true,currentPage="dashboard",selectedVehicleId=null;
@@ -586,6 +596,7 @@ function setupLogoTap(elementId){
 }
 setupLogoTap('login-logo');
 setupLogoTap('sidebar-logo');
+setupLogoTap('topbar-logo-mob');
 
 // ── PIN MODAL ─────────────────────────────────────────────
 function openPinModal(){pinBuffer="";updatePinDots();document.getElementById('pin-error').style.display='none';document.getElementById('modal-pin-overlay').classList.remove('hidden');}
