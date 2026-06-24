@@ -1,16 +1,10 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.7
+  RODIX — v1.8.1
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.6.9: el chofer invitado ya NO ve las
-  pestañas de Documentos ni Historial de service en el detalle del
-  vehículo (antes las veía en solo lectura) — ahora entra directo
-  a la pestaña Insumos, que es lo único que le compete. También se
-  agregó una marca con la inicial de quien tildó/editó cada insumo
-  por última vez (igual que en MiAgenda), con el email completo
-  visible al pasar el mouse o mantener tocado.
-  No requiere cambios en las reglas de Firestore.
+  Cambios respecto a v1.8: el refresco automático pasó de 30 a 60
+  segundos, para consumir menos datos/recursos según lo pedido.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -975,7 +969,7 @@ onAuthStateChanged(auth,async user=>{
     if(userDoc.banned){showToast('Cuenta suspendida');await signOut(auth);return;}
     if(!userDoc.flotaId){await updateDoc(userRef,{flotaId:user.uid,rolFlota:'owner'});userDoc.flotaId=user.uid;userDoc.rolFlota='owner';}
 
-    if(pendingInviteId){
+    if(pendingInviteId&&userDoc.rolFlota!=='chofer'){
       try{
         const invRef=doc(db,'invitaciones',pendingInviteId);
         const invSnap=await getDoc(invRef);
@@ -1017,6 +1011,7 @@ onAuthStateChanged(auth,async user=>{
     document.getElementById("loading-screen").classList.add("hidden");
     document.getElementById("login-screen").classList.remove("hidden");
     vehicles=[];loading=true;
+    if(refreshIntervalId){clearInterval(refreshIntervalId);refreshIntervalId=null;}
   }
 });
 
@@ -1029,9 +1024,9 @@ function aplicarPermisosFlota(){
 }
 
 // ── FIRESTORE ─────────────────────────────────────────────
+let refreshIntervalId=null;
 function startListening(){
   loading=true;
-  console.log("DIAGNÓSTICO RODIX → userDoc:",JSON.stringify(userDoc),"flotaOwnerUid:",flotaOwnerUid(),"currentUser.uid:",currentUser?.uid);
   const q=query(collection(db,"vehicles"),where("uid","==",flotaOwnerUid()),orderBy("createdAt","desc"));
   unsubVehicles=onSnapshot(q,async snap=>{
     const checklistOn=!!userDoc?.features?.checklistHabilitado;
@@ -1057,6 +1052,32 @@ function startListening(){
     const elD=document.getElementById("page-dashboard");
     if(elD&&currentPage==="dashboard")elD.innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-msg">No se pudieron cargar los vehículos</div><div class="empty-sub">${sanitizeHTML(err.code||err.message||"")}</div></div>`;
   });
+  if(refreshIntervalId)clearInterval(refreshIntervalId);
+  refreshIntervalId=setInterval(refrescarSilencioso,60000);
+}
+
+async function refrescarSilencioso(){
+  if(!currentUser)return;
+  try{
+    const checklistOn=!!userDoc?.features?.checklistHabilitado;
+    const snap=await getDocs(query(collection(db,"vehicles"),where("uid","==",flotaOwnerUid()),orderBy("createdAt","desc")));
+    const vList=await Promise.all(snap.docs.map(async vDoc=>{
+      const v={id:vDoc.id,...vDoc.data()};
+      const docsSnap=await getDocs(collection(db,"vehicles",vDoc.id,"docs"));
+      const docsData=docsSnap.docs.map(d=>({id:d.id,...d.data(),daysLeft:calcDaysLeft(d.data().expiry)}));
+      const svcSnap=await getDocs(query(collection(db,"vehicles",vDoc.id,"services"),orderBy("performedAt","desc")));
+      const svcData=svcSnap.docs.map(d=>({id:d.id,...d.data()}));
+      let insumosData=[],ultimaRevision=null;
+      if(checklistOn){
+        const insSnap=await getDocs(collection(db,"vehicles",vDoc.id,"insumos"));
+        insumosData=insSnap.docs.map(d=>({id:d.id,...d.data()}));
+        const hoy=new Date().toISOString().slice(0,10);
+        try{const rSnap=await getDoc(doc(db,"vehicles",vDoc.id,"revisiones",hoy));ultimaRevision=rSnap.exists()?rSnap.data():null;}catch(e){}
+      }
+      return{...v,docs:docsData,services:svcData,insumos:insumosData,revisionHoy:ultimaRevision,status:calcVehicleStatus(docsData)};
+    }));
+    vehicles=vList;renderCurrentPage();updateAlertBadge();
+  }catch(e){console.error("Error en refresco silencioso:",e);}
 }
 
 function updateAlertBadge(){
