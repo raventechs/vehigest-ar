@@ -1,12 +1,19 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.4
+  RODIX — v1.6
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.3: la rueda de la marca ya no es un aro fino
-  (parecía rueda de bici) — ahora es una llanta con banda de rodadura
-  oscura, rayos dorados y buje, más acorde a un auto. Se mantiene el
-  auto que cruza el login.
+  Cambios respecto a v1.5: nuevo modelo de "equipo / flota" (flag
+  features.flotaHabilitada por cliente). El dueño genera un link de
+  invitación desde "Mi equipo" (sidebar); quien lo abre y se loguea
+  queda asociado a la flota como "chofer": ve los vehículos, puede
+  tildar el checklist de insumos y confirmar la revisión diaria,
+  pero NO puede agregar/editar/borrar vehículos, documentos,
+  services ni ítems del checklist. El dueño puede quitar miembros
+  desde el mismo panel.
+  IMPORTANTE: requiere actualizar las reglas de Firestore (ver
+  bloque al final del archivo) — cambia el modelo de permisos por
+  completo respecto a v1.5.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -382,6 +389,7 @@ input,select,button,textarea{font-family:var(--font)}
         <div id="sidebar-avatar" class="avatar">?</div>
         <div><div id="sidebar-name" class="user-name">—</div><div id="sidebar-email" class="user-email">—</div></div>
       </div>
+      <button id="btn-equipo-sidebar" class="btn-theme-sidebar hidden">👥 Mi equipo</button>
       <button id="btn-theme-sidebar" class="btn-theme-sidebar">🌙 Modo oscuro</button>
       <button id="btn-logout" class="btn-logout">Cerrar sesión</button>
     </div>
@@ -515,12 +523,24 @@ function sanitizeHTML(str){const d=document.createElement('div');d.textContent=s
 // ── CONSTANTES ────────────────────────────────────────────
 const SERVICE_CATALOG=["Cambio de aceite","Filtro de aire","Filtro de combustible","Frenos delanteros","Frenos traseros","Cubiertas","Alineación y balanceo","Correa de distribución","Bujías","Amortiguadores","Revisión GNC anual","Cambio de cubiertas","Servicio mayor","Servicio menor","Otro"];
 const PAGE_TITLES={dashboard:"Inicio",vehicles:"Vehículos","vehicle-detail":"",alerts:"Alertas"};
+const PLANTILLA_INSUMOS_AMBULANCIA=[
+  {nombre:"Jeringas",cantidad:4},
+  {nombre:"Bisoprolol",cantidad:5},
+  {nombre:"Jarabe",cantidad:2},
+  {nombre:"Tubo de oxígeno",cantidad:1},
+  {nombre:"Mascarilla",cantidad:2},
+  {nombre:"Gasas",cantidad:15},
+  {nombre:"Vendas",cantidad:10}
+];
 
 // ── ESTADO ────────────────────────────────────────────────
 let vehicles=[],loading=true,currentPage="dashboard",selectedVehicleId=null;
 let unsubVehicles=null,currentUser=null,detailTab="docs";
 let logoTapCount=0,logoTapTimer=null,pinBuffer="";
 let isRegister=false;
+const pendingInviteId=new URLSearchParams(window.location.search).get('invite');
+function flotaOwnerUid(){return(userDoc?.rolFlota==='chofer'&&userDoc?.flotaId)?userDoc.flotaId:currentUser.uid;}
+function esOwnerFlota(){return!userDoc||userDoc.rolFlota!=='chofer';}
 
 // ── TEMA ──────────────────────────────────────────────────
 function initTheme(){applyTheme(localStorage.getItem('rodix-theme')||'light');}
@@ -579,6 +599,15 @@ function buildAlerts(vehicles){
       const icon=d.type.includes("VTV")?"🔍":d.type.includes("Seguro")?"🛡️":d.type.includes("GNC")?"⚡":"📋";
       alerts.push({id:`${v.id}-${d.id}`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:d.type,level,icon,daysLeft:d.daysLeft,msg:d.daysLeft<0?`${d.type} vencida hace ${Math.abs(d.daysLeft)} días`:`${d.type} vence en ${d.daysLeft} días`});
     });
+    if(v.insumos&&v.insumos.length){
+      const faltantes=v.insumos.filter(i=>i.presente===false);
+      if(faltantes.length){
+        alerts.push({id:`${v.id}-insumos-falta`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:"Insumos",level:"critical",icon:"🩹",daysLeft:0,msg:`Faltan ${faltantes.length} insumo${faltantes.length>1?"s":""}: ${faltantes.map(f=>sanitizeHTML(f.nombre)).join(", ")}`});
+      }
+      if(!v.revisionHoy){
+        alerts.push({id:`${v.id}-insumos-sinrevisar`,vehicleId:v.id,vehicle:sanitizeHTML(`${v.brand} ${v.model}`),plate:sanitizeHTML(v.plate),type:"Insumos",level:"warning",icon:"🩹",daysLeft:1,msg:"Sin confirmar la revisión de hoy"});
+      }
+    }
   });
   return alerts.sort((a,b)=>a.daysLeft-b.daysLeft);
 }
@@ -691,6 +720,13 @@ async function loadAdminUsuarios(){
           <input type="number" min="1" max="50" value="${u.features?.limiteVehiculos||1}" style="width:56px;padding:6px;border:1.5px solid #dde1ec;border-radius:6px;font-size:12px;font-family:var(--font)" data-limit-uid="${d.id}"/>
           <button class="btn-setlimit" data-uid="${d.id}">💾 Guardar límite</button>
         </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px"><input type="checkbox" data-checklist-uid="${d.id}" ${u.features?.checklistHabilitado?"checked":""}/> Checklist de insumos (ambulancias)</label>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px"><input type="checkbox" data-flota-uid="${d.id}" ${u.features?.flotaHabilitada?"checked":""}/> Equipo / flota (invitar choferes)</label>
+        </div>
+        ${u.rolFlota==='chofer'?`<div style="font-size:11px;color:var(--gold);margin-top:6px">🚐 Chofer de la flota de: ${sanitizeHTML(u.flotaId||'')}</div>`:""}
       </div>`;
     }).join('');
   }catch{c.innerHTML='<div class="empty"><div class="empty-msg">Sin colección de usuarios</div><div class="empty-sub">Los usuarios se crean al registrarse</div></div>';}
@@ -706,9 +742,19 @@ document.getElementById('admin-usuarios-list').addEventListener('click',async(e)
   const ext=e.target.closest('.btn-aext');
   const act=e.target.closest('.btn-aact');
   const setlim=e.target.closest('.btn-setlimit');
+  const checklistChk=e.target.closest('[data-checklist-uid]');
+  const flotaChk=e.target.closest('[data-flota-uid]');
   const delUser=e.target.closest('.btn-admin-del-user');
   if(ban){if(!confirm('¿Banear este usuario?'))return;await updateDoc(doc(db,'usuarios',ban.dataset.uid),{banned:true});showToast('Usuario baneado');await loadAdminUsuarios();}
   if(unban){await updateDoc(doc(db,'usuarios',unban.dataset.uid),{banned:false});showToast('Usuario desbaneado');await loadAdminUsuarios();}
+  if(checklistChk){
+    await updateDoc(doc(db,'usuarios',checklistChk.dataset.checklistUid),{'features.checklistHabilitado':checklistChk.checked});
+    showToast(checklistChk.checked?'Checklist de insumos habilitado':'Checklist de insumos deshabilitado');
+  }
+  if(flotaChk){
+    await updateDoc(doc(db,'usuarios',flotaChk.dataset.flotaUid),{'features.flotaHabilitada':flotaChk.checked});
+    showToast(flotaChk.checked?'Equipo/flota habilitado':'Equipo/flota deshabilitado');
+  }
   if(ext){
     const dias=parseInt(document.querySelector(`input[data-ext-uid="${ext.dataset.uid}"]`)?.value)||7;
     const snap=await getDoc(doc(db,'usuarios',ext.dataset.uid));const u=snap.data();
@@ -723,7 +769,7 @@ document.getElementById('admin-usuarios-list').addEventListener('click',async(e)
   }
   if(setlim){
     const val=parseInt(document.querySelector(`input[data-limit-uid="${setlim.dataset.uid}"]`)?.value)||1;
-    await updateDoc(doc(db,'usuarios',setlim.dataset.uid),{features:{limiteVehiculos:val}});
+    await updateDoc(doc(db,'usuarios',setlim.dataset.uid),{'features.limiteVehiculos':val});
     showToast(`Límite actualizado a ${val} vehículo${val>1?"s":""}`);await loadAdminUsuarios();
   }
   if(delUser){
@@ -735,7 +781,9 @@ document.getElementById('admin-usuarios-list').addEventListener('click',async(e)
       for(const vDoc of vSnap.docs){
         const docsSnap=await getDocs(collection(db,'vehicles',vDoc.id,'docs'));
         const svcSnap=await getDocs(collection(db,'vehicles',vDoc.id,'services'));
-        await Promise.all([...docsSnap.docs.map(d=>deleteDoc(d.ref)),...svcSnap.docs.map(d=>deleteDoc(d.ref))]);
+        const insSnap=await getDocs(collection(db,'vehicles',vDoc.id,'insumos'));
+        const revSnap=await getDocs(collection(db,'vehicles',vDoc.id,'revisiones'));
+        await Promise.all([...docsSnap.docs.map(d=>deleteDoc(d.ref)),...svcSnap.docs.map(d=>deleteDoc(d.ref)),...insSnap.docs.map(d=>deleteDoc(d.ref)),...revSnap.docs.map(d=>deleteDoc(d.ref))]);
         await deleteDoc(vDoc.ref);
       }
       await deleteDoc(doc(db,'usuarios',delUser.dataset.uid));
@@ -786,6 +834,7 @@ document.getElementById("btn-login").addEventListener("click",async()=>{
         uid:cred.user.uid,email,banned:false,
         status:'demo',demoStart:serverTimestamp(),
         createdAt:serverTimestamp(),
+        flotaId:cred.user.uid,rolFlota:'owner',
         features:{limiteVehiculos:1}
       });
     }
@@ -799,6 +848,48 @@ document.getElementById("btn-login").addEventListener("click",async()=>{
 document.getElementById("login-pass").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("btn-login").click();});
 document.getElementById("btn-logout").addEventListener("click",async()=>{if(unsubVehicles)unsubVehicles();await signOut(auth);});
 document.getElementById("btn-theme-sidebar").addEventListener("click",toggleTheme);
+document.getElementById("btn-equipo-sidebar").addEventListener("click",openEquipoModal);
+
+async function openEquipoModal(){
+  const wrap=openModal(`<div class="modal-overlay"><div class="modal"><div class="modal-header"><span class="modal-title">👥 Mi equipo</span><div class="modal-close" id="modal-close-btn">✕</div></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Invitá choferes para que puedan ver los vehículos y confirmar el checklist diario. No pueden editar ni borrar nada.</p>
+    <button class="btn-sm gold" id="btn-gen-invite" style="width:100%;justify-content:center;margin-bottom:16px">🔗 Generar link de invitación</button>
+    <div id="invite-link-box" style="display:none;margin-bottom:16px"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Miembros del equipo</div>
+    <div id="equipo-lista">Cargando...</div>
+    <div class="modal-footer"><button class="btn-cancel" id="modal-cancel-btn">Cerrar</button></div>
+  </div></div>`);
+  wrap.querySelector("#modal-close-btn").addEventListener("click",closeModal);
+  wrap.querySelector("#modal-cancel-btn").addEventListener("click",closeModal);
+  wrap.querySelector(".modal-overlay").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal();});
+  wrap.querySelector("#btn-gen-invite").addEventListener("click",async()=>{
+    const btn=wrap.querySelector("#btn-gen-invite");btn.disabled=true;btn.textContent="Generando...";
+    try{
+      const ref=await addDoc(collection(db,"invitaciones"),{ownerUid:currentUser.uid,ownerEmail:currentUser.email,rol:"chofer",usado:false,createdAt:serverTimestamp()});
+      const link=`${window.location.origin}${window.location.pathname}?invite=${ref.id}`;
+      const box=wrap.querySelector("#invite-link-box");
+      box.style.display="block";
+      box.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Compartí este link con el chofer (vence al usarse una vez):</div><div style="display:flex;gap:6px"><input readonly value="${link}" style="flex:1;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px"/><button class="btn-sm" id="btn-copy-invite">Copiar</button></div>`;
+      box.querySelector("#btn-copy-invite").addEventListener("click",()=>{
+        navigator.clipboard?.writeText(link).then(()=>showToast("Link copiado")).catch(()=>{});
+      });
+    }catch(e){showToast("Error al generar el link","error");}
+    btn.disabled=false;btn.textContent="🔗 Generar link de invitación";
+  });
+  const lista=wrap.querySelector("#equipo-lista");
+  try{
+    const snap=await getDocs(query(collection(db,"usuarios"),where("flotaId","==",currentUser.uid),where("rolFlota","==","chofer")));
+    if(snap.empty){lista.innerHTML='<div style="font-size:13px;color:var(--muted)">Todavía no invitaste a nadie.</div>';}
+    else{
+      lista.innerHTML=snap.docs.map(d=>{const u=d.data();return`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:13px">${sanitizeHTML(u.email)}</span><button class="btn-sm danger" data-remove-chofer="${d.id}" style="font-size:11px;padding:4px 10px;color:var(--danger);border-color:#fca5a5">Quitar</button></div>`;}).join("");
+      lista.querySelectorAll("[data-remove-chofer]").forEach(b=>b.addEventListener("click",async()=>{
+        if(!confirm("¿Quitar a esta persona del equipo? Deja de ver los vehículos de la flota."))return;
+        await updateDoc(doc(db,"usuarios",b.dataset.removeChofer),{flotaId:b.dataset.removeChofer,rolFlota:"owner"});
+        showToast("Persona removida del equipo");openEquipoModal();
+      }));
+    }
+  }catch(e){lista.innerHTML='<div style="font-size:13px;color:var(--muted)">No se pudo cargar el equipo.</div>';}
+}
 
 // ── MENÚ DEL AVATAR (visible siempre, incluido mobile) ─────
 document.getElementById("topbar-avatar").addEventListener("click",e=>{
@@ -857,6 +948,7 @@ onAuthStateChanged(auth,async user=>{
         uid:user.uid,email:user.email,banned:false,
         status:'demo',demoStart:serverTimestamp(),
         createdAt:serverTimestamp(),
+        flotaId:user.uid,rolFlota:'owner',
         features:{limiteVehiculos:1}
       });
       snap=await getDoc(userRef);
@@ -864,6 +956,30 @@ onAuthStateChanged(auth,async user=>{
 
     userDoc=snap.data();
     if(userDoc.banned){showToast('Cuenta suspendida');await signOut(auth);return;}
+    if(!userDoc.flotaId){await updateDoc(userRef,{flotaId:user.uid,rolFlota:'owner'});userDoc.flotaId=user.uid;userDoc.rolFlota='owner';}
+
+    if(pendingInviteId){
+      try{
+        const invRef=doc(db,'invitaciones',pendingInviteId);
+        const invSnap=await getDoc(invRef);
+        if(invSnap.exists()&&!invSnap.data().usado&&invSnap.data().ownerUid!==user.uid){
+          const inv=invSnap.data();
+          await updateDoc(userRef,{flotaId:inv.ownerUid,rolFlota:'chofer'});
+          await updateDoc(invRef,{usado:true,usadoPor:user.email,usadoUid:user.uid});
+          userDoc.flotaId=inv.ownerUid;userDoc.rolFlota='chofer';
+          showToast('Te uniste a la flota correctamente');
+        }else if(invSnap.exists()&&invSnap.data().usado){
+          showToast('Ese link de invitación ya fue usado','error');
+        }
+      }catch(e){console.error(e);}
+    }
+
+    if(userDoc.rolFlota==='chofer'&&userDoc.flotaId!==user.uid){
+      try{
+        const ownerSnap=await getDoc(doc(db,'usuarios',userDoc.flotaId));
+        if(ownerSnap.exists()){userDoc.features=ownerSnap.data().features||{};userDoc.status='activo';}
+      }catch(e){}
+    }
 
     document.getElementById("loading-screen").classList.add("hidden");
     document.getElementById("login-screen").classList.add("hidden");
@@ -874,6 +990,7 @@ onAuthStateChanged(auth,async user=>{
     document.getElementById("sidebar-name").textContent=user.email.split("@")[0];
     document.getElementById("sidebar-email").textContent=user.email;
     document.getElementById("tum-email").textContent=user.email;
+    aplicarPermisosFlota();
     startListening();navigateTo("dashboard");
     checkDemo();
   }else{
@@ -886,16 +1003,29 @@ onAuthStateChanged(auth,async user=>{
   }
 });
 
+function aplicarPermisosFlota(){
+  const esChofer=userDoc?.rolFlota==='chofer';
+  const teamBtn=document.getElementById('btn-equipo-sidebar');
+  if(teamBtn)teamBtn.classList.toggle('hidden',!userDoc?.features?.flotaHabilitada||esChofer);
+}
+
 // ── FIRESTORE ─────────────────────────────────────────────
 function startListening(){
   loading=true;
-  const q=query(collection(db,"vehicles"),where("uid","==",currentUser.uid),orderBy("createdAt","desc"));
+  const q=query(collection(db,"vehicles"),where("uid","==",flotaOwnerUid()),orderBy("createdAt","desc"));
   unsubVehicles=onSnapshot(q,async snap=>{
+    const checklistOn=!!userDoc?.features?.checklistHabilitado;
     const vList=await Promise.all(snap.docs.map(async vDoc=>{
       const v={id:vDoc.id,...vDoc.data()};
       const docsData=await new Promise(res=>{const unsub=onSnapshot(collection(db,"vehicles",vDoc.id,"docs"),s=>{unsub();res(s.docs.map(d=>({id:d.id,...d.data(),daysLeft:calcDaysLeft(d.data().expiry)})));});});
       const svcData=await new Promise(res=>{const unsub=onSnapshot(query(collection(db,"vehicles",vDoc.id,"services"),orderBy("performedAt","desc")),s=>{unsub();res(s.docs.map(d=>({id:d.id,...d.data()})));});});
-      return{...v,docs:docsData,services:svcData,status:calcVehicleStatus(docsData)};
+      let insumosData=[],ultimaRevision=null;
+      if(checklistOn){
+        insumosData=await new Promise(res=>{const unsub=onSnapshot(collection(db,"vehicles",vDoc.id,"insumos"),s=>{unsub();res(s.docs.map(d=>({id:d.id,...d.data()})));});});
+        const hoy=new Date().toISOString().slice(0,10);
+        try{const rSnap=await getDoc(doc(db,"vehicles",vDoc.id,"revisiones",hoy));ultimaRevision=rSnap.exists()?rSnap.data():null;}catch(e){}
+      }
+      return{...v,docs:docsData,services:svcData,insumos:insumosData,revisionHoy:ultimaRevision,status:calcVehicleStatus(docsData)};
     }));
     vehicles=vList;loading=false;renderCurrentPage();updateAlertBadge();
   });
@@ -991,8 +1121,9 @@ function renderDashboard(){
 function renderVehicles(){
   const el=document.getElementById("page-vehicles");
   if(loading){el.innerHTML=spinnerHTML();return;}
+  const puedeEditar=esOwnerFlota();
   el.innerHTML=`
-    <div class="sec-header fade" style="margin-bottom:20px"><span class="sec-title" style="font-size:17px">Todos los vehículos</span><button class="btn-sm gold" id="btn-add-vehicle">＋ Agregar vehículo</button></div>
+    <div class="sec-header fade" style="margin-bottom:20px"><span class="sec-title" style="font-size:17px">Todos los vehículos</span>${puedeEditar?'<button class="btn-sm gold" id="btn-add-vehicle">＋ Agregar vehículo</button>':''}</div>
     <div class="vehicle-grid fade">
       ${vehicles.map(v=>`
         <div class="vehicle-card" data-vid="${v.id}">
@@ -1004,10 +1135,10 @@ function renderVehicles(){
           <div class="vc-stats"><div><div class="vc-stat-val">${fmtNum(v.km)} km</div><div class="vc-stat-lbl">Kilometraje</div></div><div><div class="vc-stat-val">${v.fuel||"—"}${v.gnc?" + GNC":""}</div><div class="vc-stat-lbl">Combustible</div></div></div>
           ${v.docs.some(d=>d.daysLeft!==null&&d.daysLeft<30)?`<div class="vc-alerts">${v.docs.filter(d=>d.daysLeft!==null&&d.daysLeft<30).map(d=>`<span class="alert-tag ${d.daysLeft<0?"bad":"warn"}">${d.type} ${daysLabel(d.daysLeft)}</span>`).join("")}</div>`:""}
         </div>`).join("")}
-      <div class="vehicle-card add-card" id="btn-add-vehicle-card"><span style="font-size:32px;opacity:.3">＋</span><span style="font-size:14px;font-weight:600">Agregar vehículo</span></div>
+      ${puedeEditar?'<div class="vehicle-card add-card" id="btn-add-vehicle-card"><span style="font-size:32px;opacity:.3">＋</span><span style="font-size:14px;font-weight:600">Agregar vehículo</span></div>':''}
     </div>`;
-  el.querySelector("#btn-add-vehicle").addEventListener("click",()=>openAddVehicleModal());
-  el.querySelector("#btn-add-vehicle-card").addEventListener("click",()=>openAddVehicleModal());
+  el.querySelector("#btn-add-vehicle")?.addEventListener("click",()=>openAddVehicleModal());
+  el.querySelector("#btn-add-vehicle-card")?.addEventListener("click",()=>openAddVehicleModal());
   el.querySelectorAll(".vehicle-card[data-vid]").forEach(card=>{card.addEventListener("click",()=>navigateTo("vehicle-detail",card.dataset.vid));});
 }
 
@@ -1033,9 +1164,7 @@ function renderVehicleDetail(){
       </div>
       <div class="detail-actions">
         <div class="status-pill s-${v.status}" style="font-size:13px;padding:6px 14px;text-align:center">${v.status==="ok"?"✅ Al día":v.status==="warn"?"⚠️ Atención":"🚨 Crítico"}</div>
-        <button class="btn-sm" id="btn-edit-vehicle">✏️ Editar</button>
-        <button class="btn-sm" id="btn-add-doc">＋ Documento</button>
-        <button class="btn-sm gold" id="btn-add-service">＋ Service</button>
+        ${esOwnerFlota()?`<button class="btn-sm" id="btn-edit-vehicle">✏️ Editar</button><button class="btn-sm" id="btn-add-doc">＋ Documento</button><button class="btn-sm gold" id="btn-add-service">＋ Service</button>`:""}
       </div>
     </div>
     <div class="kpi-grid fade" style="grid-template-columns:repeat(3,1fr);margin-bottom:24px">
@@ -1046,14 +1175,16 @@ function renderVehicleDetail(){
     <div class="tabs fade">
       <div class="tab${detailTab==="docs"?" active":""}" id="tab-docs">📋 Documentos</div>
       <div class="tab${detailTab==="services"?" active":""}" id="tab-services">🔧 Historial de service</div>
+      ${userDoc?.features?.checklistHabilitado?`<div class="tab${detailTab==="insumos"?" active":""}" id="tab-insumos">🩹 Insumos</div>`:""}
     </div>
     <div id="tab-content" class="fade"></div>`;
   el.querySelector("#btn-back-vehicles").addEventListener("click",()=>navigateTo("vehicles"));
-  el.querySelector("#btn-edit-vehicle").addEventListener("click",()=>openAddVehicleModal(v));
-  el.querySelector("#btn-add-doc").addEventListener("click",()=>openAddDocModal(v));
-  el.querySelector("#btn-add-service").addEventListener("click",()=>openAddServiceModal(v));
+  el.querySelector("#btn-edit-vehicle")?.addEventListener("click",()=>openAddVehicleModal(v));
+  el.querySelector("#btn-add-doc")?.addEventListener("click",()=>openAddDocModal(v));
+  el.querySelector("#btn-add-service")?.addEventListener("click",()=>openAddServiceModal(v));
   el.querySelector("#tab-docs").addEventListener("click",()=>{detailTab="docs";renderTabContent(v);});
   el.querySelector("#tab-services").addEventListener("click",()=>{detailTab="services";renderTabContent(v);});
+  el.querySelector("#tab-insumos")?.addEventListener("click",()=>{detailTab="insumos";renderTabContent(v);});
   renderTabContent(v);
 }
 
@@ -1061,7 +1192,9 @@ function renderTabContent(v){
   const el=document.getElementById("tab-content");if(!el)return;
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.getElementById(`tab-${detailTab}`)?.classList.add("active");
-  if(detailTab==="docs"){
+  if(detailTab==="insumos"){
+    renderInsumosTab(v,el);
+  }else if(detailTab==="docs"){
     if(v.docs.length===0){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-msg">Sin documentos</div><div class="empty-sub">Cargá el primero con el botón de arriba</div></div>';return;}
     el.innerHTML=`<div class="docs-grid">${v.docs.map(d=>{const cls=d.daysLeft===null?"":d.daysLeft<0?"expired":d.daysLeft<30?"warning":"";return`<div class="doc-card ${cls}" data-doc-id="${d.id}" style="cursor:pointer" title="Tocá para editar"><div style="display:flex;justify-content:space-between;align-items:flex-start"><div class="doc-icon">${docIcon(d.type)}</div><span style="font-size:14px;opacity:.5">✏️</span></div><div class="doc-name">${sanitizeHTML(d.type)}</div><div class="doc-issuer">${sanitizeHTML(d.issuer||"—")}</div>${d.policy?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:monospace">${sanitizeHTML(d.policy)}</div>`:""} ${d.expiry?`<div style="font-size:10px;color:var(--muted);margin-bottom:2px">VENCE</div><div style="font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(d.expiry)}</div><div class="doc-days" style="background:${d.daysLeft<0?"var(--danger-bg)":d.daysLeft<30?"var(--warn-bg)":"var(--green-bg)"};color:${daysColor(d.daysLeft)}">${daysLabel(d.daysLeft)}</div>`:`<div style="font-size:12px;color:var(--muted);font-style:italic">Sin fecha de vencimiento</div>`}${d.paid>0?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Pagado: <strong style="color:var(--text)">${fmtARS(d.paid)}</strong></div>`:""}</div>`;}).join("")}</div>`;
     el.querySelectorAll("[data-doc-id]").forEach(card=>card.addEventListener("click",()=>{
@@ -1074,6 +1207,93 @@ function renderTabContent(v){
       const svc=v.services.find(s=>s.id===item.dataset.serviceId);if(svc)openAddServiceModal(v,svc);
     }));
   }
+}
+
+// ── INSUMOS (checklist) ───────────────────────────────────
+function renderInsumosTab(v,el){
+  const puedeEditar=esOwnerFlota();
+  if(!v.insumos||v.insumos.length===0){
+    if(!puedeEditar){el.innerHTML='<div class="empty"><div class="empty-icon">🩹</div><div class="empty-msg">Sin checklist de insumos</div><div class="empty-sub">Pedile al dueño de la flota que lo cree</div></div>';return;}
+    el.innerHTML=`<div class="empty"><div class="empty-icon">🩹</div><div class="empty-msg">Sin checklist de insumos</div><div class="empty-sub">Creá la lista a partir de la plantilla</div><button class="btn-sm gold" id="btn-seed-insumos" style="margin-top:14px">＋ Crear checklist (plantilla)</button></div>`;
+    el.querySelector("#btn-seed-insumos").addEventListener("click",async()=>{
+      const btn=el.querySelector("#btn-seed-insumos");btn.disabled=true;btn.textContent="Creando...";
+      try{await Promise.all(PLANTILLA_INSUMOS_AMBULANCIA.map(it=>addDoc(collection(db,"vehicles",v.id,"insumos"),{nombre:it.nombre,cantidad:it.cantidad,presente:true})));showToast("Checklist creado");}
+      catch(e){showToast("Error al crear checklist","error");btn.disabled=false;btn.textContent="＋ Crear checklist (plantilla)";}
+    });
+    return;
+  }
+  const revisado=!!v.revisionHoy;
+  const faltan=v.insumos.filter(i=>i.presente===false).length;
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:13px;color:var(--muted)">${revisado?`✅ Revisión de hoy confirmada por ${sanitizeHTML(v.revisionHoy.hechoPor||"")}`:faltan>0?`🚨 Faltan ${faltan} insumo${faltan>1?"s":""}`:"Tildá cada insumo presente y confirmá la revisión"}</div>
+      ${puedeEditar?'<button class="btn-sm" id="btn-add-insumo">＋ Agregar ítem</button>':''}
+    </div>
+    <div class="docs-grid">${v.insumos.map(i=>`
+      <div class="doc-card ${i.presente===false?"expired":""}" style="cursor:default">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+          <input type="checkbox" data-insumo-id="${i.id}" ${i.presente!==false?"checked":""} style="width:18px;height:18px"/>
+          <span style="flex:1;font-weight:700;font-size:14px;color:var(--text)">${sanitizeHTML(i.nombre)}</span>
+        </label>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">Cantidad: <strong style="color:var(--text)">${i.cantidad}</strong></div>
+        ${puedeEditar?`<div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn-sm" data-edit-insumo="${i.id}" style="padding:4px 10px;font-size:11px">✏️</button>
+          <button class="btn-sm danger" data-del-insumo="${i.id}" style="padding:4px 10px;font-size:11px;color:var(--danger);border-color:#fca5a5">🗑</button>
+        </div>`:''}
+      </div>`).join("")}</div>
+    <div style="margin-top:18px">
+      <button class="btn-sm gold" id="btn-confirmar-revision" ${revisado?"disabled":""} style="width:100%;justify-content:center;padding:12px">${revisado?"✅ Revisión de hoy ya confirmada":"✅ Confirmar revisión de hoy"}</button>
+    </div>`;
+  el.querySelectorAll("[data-insumo-id]").forEach(chk=>{
+    chk.addEventListener("change",async()=>{
+      await updateDoc(doc(db,"vehicles",v.id,"insumos",chk.dataset.insumoId),{presente:chk.checked});
+    });
+  });
+  el.querySelectorAll("[data-edit-insumo]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const item=v.insumos.find(i=>i.id===btn.dataset.editInsumo);
+      openInsumoModal(v,item);
+    });
+  });
+  el.querySelectorAll("[data-del-insumo]").forEach(btn=>{
+    btn.addEventListener("click",async()=>{
+      if(!confirm("¿Eliminar este insumo de la lista?"))return;
+      await deleteDoc(doc(db,"vehicles",v.id,"insumos",btn.dataset.delInsumo));
+    });
+  });
+  el.querySelector("#btn-add-insumo")?.addEventListener("click",()=>openInsumoModal(v));
+  el.querySelector("#btn-confirmar-revision")?.addEventListener("click",async()=>{
+    if(revisado)return;
+    const btn=el.querySelector("#btn-confirmar-revision");btn.disabled=true;btn.textContent="Confirmando...";
+    const hoy=new Date().toISOString().slice(0,10);
+    try{
+      await setDoc(doc(db,"vehicles",v.id,"revisiones",hoy),{
+        fecha:hoy,hechoPor:currentUser.email,completa:v.insumos.every(i=>i.presente!==false),
+        faltantes:v.insumos.filter(i=>i.presente===false).map(i=>i.nombre),
+        timestamp:serverTimestamp()
+      });
+      showToast("Revisión confirmada");
+    }catch(e){showToast("Error al confirmar","error");btn.disabled=false;btn.textContent="✅ Confirmar revisión de hoy";}
+  });
+}
+
+function openInsumoModal(v,existing=null){
+  const isEdit=!!existing;
+  const wrap=openModal(`<div class="modal-overlay"><div class="modal"><div class="modal-header"><span class="modal-title">🩹 ${isEdit?"Editar":"Agregar"} insumo</span><div class="modal-close" id="modal-close-btn">✕</div></div><div class="field"><label>Nombre *</label><input id="f-nombre" placeholder="Jeringas" value="${existing?sanitizeHTML(existing.nombre):""}"/></div><div class="field"><label>Cantidad requerida *</label><input id="f-cantidad" type="number" min="1" value="${existing?.cantidad||1}"/></div><div class="modal-footer"><button class="btn-cancel" id="modal-cancel-btn">Cancelar</button><button class="btn-save" id="modal-save-btn">${isEdit?"Guardar cambios":"Agregar"}</button></div></div></div>`);
+  wrap.querySelector("#modal-close-btn").addEventListener("click",closeModal);
+  wrap.querySelector("#modal-cancel-btn").addEventListener("click",closeModal);
+  wrap.querySelector(".modal-overlay").addEventListener("click",e=>{if(e.target===e.currentTarget)closeModal();});
+  wrap.querySelector("#modal-save-btn").addEventListener("click",async()=>{
+    const nombre=wrap.querySelector("#f-nombre").value.trim();
+    const cantidad=parseInt(wrap.querySelector("#f-cantidad").value)||1;
+    if(!nombre){showToast("El nombre es obligatorio","error");return;}
+    const btn=wrap.querySelector("#modal-save-btn");btn.disabled=true;btn.textContent="Guardando...";
+    try{
+      if(isEdit)await updateDoc(doc(db,"vehicles",v.id,"insumos",existing.id),{nombre,cantidad});
+      else await addDoc(collection(db,"vehicles",v.id,"insumos"),{nombre,cantidad,presente:true});
+      closeModal();showToast(isEdit?"Insumo actualizado":"Insumo agregado");
+    }catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent=isEdit?"Guardar cambios":"Agregar";}
+  });
 }
 
 // ── ALERTAS ───────────────────────────────────────────────
@@ -1127,7 +1347,9 @@ function openAddVehicleModal(existing=null){
     try{
       const docsSnap=await getDocs(collection(db,"vehicles",existing.id,"docs"));
       const svcSnap=await getDocs(collection(db,"vehicles",existing.id,"services"));
-      await Promise.all([...docsSnap.docs.map(d=>deleteDoc(d.ref)),...svcSnap.docs.map(d=>deleteDoc(d.ref))]);
+      const insSnap=await getDocs(collection(db,"vehicles",existing.id,"insumos"));
+      const revSnap=await getDocs(collection(db,"vehicles",existing.id,"revisiones"));
+      await Promise.all([...docsSnap.docs.map(d=>deleteDoc(d.ref)),...svcSnap.docs.map(d=>deleteDoc(d.ref)),...insSnap.docs.map(d=>deleteDoc(d.ref)),...revSnap.docs.map(d=>deleteDoc(d.ref))]);
       await deleteDoc(doc(db,"vehicles",existing.id));
       closeModal();showToast("Vehículo eliminado");
       if(currentPage==="vehicle-detail")navigateTo("vehicles");
@@ -1216,30 +1438,65 @@ document.getElementById("btn-google").addEventListener("click",async()=>{
 
 <!--
 FIRESTORE SECURITY RULES — Firebase Console > Firestore > Reglas
-(v1.1 — corregido: docs/services ahora validan dueño del vehículo)
+(v1.6 — modelo de equipo/flota: vehicles.uid representa al DUEÑO de
+la flota; usuarios.flotaId apunta a ese mismo uid; un chofer tiene
+rolFlota='chofer' y flotaId = uid del dueño)
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function miUsuario() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+    function miFlotaId() {
+      return miUsuario().flotaId;
+    }
+    function esChofer() {
+      return miUsuario().rolFlota == 'chofer';
+    }
+    function esAdmin() {
+      return request.auth.token.email == 'rgaraventa@gmail.com';
+    }
+
     match /vehicles/{vehicleId} {
-      allow read, write: if request.auth != null && resource.data.uid == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null && resource.data.uid == miFlotaId();
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid && !esChofer();
+      allow update: if request.auth != null && resource.data.uid == miFlotaId() && !esChofer();
       allow delete: if request.auth != null && (
-        resource.data.uid == request.auth.uid ||
-        request.auth.token.email == 'rgaraventa@gmail.com'
+        (resource.data.uid == miFlotaId() && !esChofer()) || esAdmin()
       );
 
       match /docs/{docId} {
-        allow read, write, delete: if request.auth != null && (
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == request.auth.uid ||
-          request.auth.token.email == 'rgaraventa@gmail.com'
+        allow read: if request.auth != null &&
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow write, delete: if request.auth != null && !esChofer() && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
         );
       }
       match /services/{serviceId} {
-        allow read, write, delete: if request.auth != null && (
-          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == request.auth.uid ||
-          request.auth.token.email == 'rgaraventa@gmail.com'
+        allow read: if request.auth != null &&
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow write, delete: if request.auth != null && !esChofer() && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
+      }
+      match /insumos/{insumoId} {
+        allow read: if request.auth != null &&
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow update: if request.auth != null &&
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow create, delete: if request.auth != null && !esChofer() && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
+        );
+      }
+      match /revisiones/{revisionId} {
+        allow read: if request.auth != null &&
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow create: if request.auth != null &&
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId();
+        allow update, delete: if request.auth != null && !esChofer() && (
+          get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.uid == miFlotaId() || esAdmin()
         );
       }
     }
@@ -1248,11 +1505,19 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && (
-        request.auth.token.email == 'rgaraventa@gmail.com' ||
-        (request.auth.uid == userId &&
-         request.resource.data.features == resource.data.features)
+        esAdmin() ||
+        (request.auth.uid == userId && request.resource.data.features == resource.data.features) ||
+        (resource.data.flotaId == request.auth.uid &&
+         request.resource.data.flotaId == userId &&
+         request.resource.data.rolFlota == 'owner')
       );
-      allow delete: if request.auth != null && request.auth.token.email == 'rgaraventa@gmail.com';
+      allow delete: if request.auth != null && esAdmin();
+    }
+
+    match /invitaciones/{id} {
+      allow read: if true;
+      allow create: if request.auth != null && request.resource.data.ownerUid == request.auth.uid && !esChofer();
+      allow update: if request.auth != null;
     }
   }
 }
@@ -1260,6 +1525,7 @@ service cloud.firestore {
 ÍNDICES COMPUESTOS — Firebase Console > Firestore > Índices > Compuestos
 1. vehicles | uid ASC, createdAt DESC
 2. vehicles/{id}/services | performedAt DESC
+3. usuarios | flotaId ASC, rolFlota ASC
 -->
 </body>
 </html>
