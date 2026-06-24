@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.6.8
+  RODIX — v1.6.9
   Fecha de esta versión: 2026-06-24
-  Cambios respecto a v1.6.7: la tarjeta "Al día" del Dashboard
-  (Inicio, 4 tarjetas) también se transforma en "👥 Equipo" cuando
-  el cliente tiene la flota habilitada — mismo criterio que ya
-  aplicaba en la pantalla de Alertas. Sin flota activa, sigue
-  mostrando "Al día / Sin vencimientos" como siempre.
+  Cambios respecto a v1.6.8: en "Mi equipo", junto al link de
+  invitación, se agregó un botón "📲 WhatsApp" que abre WhatsApp
+  con el mensaje y el link ya preparados para enviar directo,
+  sin tener que copiar y pegar a mano.
   Subir a producción: reemplazar el archivo en GitHub + pegar
   las reglas nuevas en Firebase Console → Firestore → Reglas.
   ════════════════════════════════════════════════════════════
@@ -878,9 +877,13 @@ async function openEquipoModal(){
       const link=`${window.location.origin}${window.location.pathname}?invite=${ref.id}`;
       const box=wrap.querySelector("#invite-link-box");
       box.style.display="block";
-      box.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Compartí este link con el chofer (vence al usarse una vez):</div><div style="display:flex;gap:6px"><input readonly value="${link}" style="flex:1;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px"/><button class="btn-sm" id="btn-copy-invite">Copiar</button></div>`;
+      box.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Compartí este link con el chofer (vence al usarse una vez):</div><div style="display:flex;gap:6px"><input readonly value="${link}" style="flex:1;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px"/><button class="btn-sm" id="btn-copy-invite">Copiar</button><button class="btn-sm" id="btn-whatsapp-invite" style="background:#25D366;color:#fff;border-color:#25D366">📲 WhatsApp</button></div>`;
       box.querySelector("#btn-copy-invite").addEventListener("click",()=>{
         navigator.clipboard?.writeText(link).then(()=>showToast("Link copiado")).catch(()=>{});
+      });
+      box.querySelector("#btn-whatsapp-invite").addEventListener("click",()=>{
+        const texto=encodeURIComponent(`Te invito a unirte al equipo de Rodix para gestionar la flota de vehículos. Entrá a este link para sumarte: ${link}`);
+        window.open(`https://wa.me/?text=${texto}`,"_blank");
       });
     }catch(e){showToast("Error al generar el link","error");}
     btn.disabled=false;btn.textContent="🔗 Generar link de invitación";
