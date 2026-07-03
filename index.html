@@ -509,11 +509,26 @@ const firebaseConfig={
 };
 
 // 🔐 PIN ADMIN — cambiarlo por el número que quieras
-const ADMIN_PIN = "1990";
+// Rodix v1.9 — 2026-07-02 — P1 PIN 2580 + P2 CSV + P3 SW + P5 logError (ROBUSTEZ)
+ const ADMIN_PIN = "2580";
 
 const firebaseApp=initializeApp(firebaseConfig);
 const auth=getAuth(firebaseApp);
 const db=getFirestore(firebaseApp);
+
+// LOG DE ERRORES — P5 ROBUSTEZ
+async function logError(origen, mensaje, extra) {
+  try {
+    const uid = currentUser ? currentUser.uid : 'anonimo';
+    await addDoc(collection(db,'errores'), {
+      app: 'Rodix', origen,
+      mensaje: String(mensaje),
+      extra: extra ? String(extra) : null,
+      uid,
+      ts: serverTimestamp()
+    });
+  } catch(_) {}
+}
 
 function sanitizeHTML(str){const d=document.createElement('div');d.textContent=str??"";return d.innerHTML;}
 
@@ -665,7 +680,8 @@ function closeAdminPanel(){
 }
 
 async function loadAdminVehiculos(){
-  const c=document.getElementById('admin-vehiculos-list');
+  const c=<button onclick="exportarCSV()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:12px;width:100%">⬇️ Exportar flota CSV</button>
+  document.getElementById('admin-vehiculos-list');
   c.innerHTML=spinnerHTML();
   try{
     const snap=await getDocs(collection(db,'vehicles'));
@@ -881,7 +897,7 @@ async function openEquipoModal(){
       box.style.display="block";
       box.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Compartí este link con el chofer (vence al usarse una vez):</div><div style="display:flex;gap:6px"><input readonly value="${link}" style="flex:1;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px"/><button class="btn-sm" id="btn-copy-invite">Copiar</button><button class="btn-sm" id="btn-whatsapp-invite" style="background:#25D366;color:#fff;border-color:#25D366">📲 WhatsApp</button></div>`;
       box.querySelector("#btn-copy-invite").addEventListener("click",()=>{
-        navigator.clipboard?.writeText(link).then(()=>showToast("Link copiado")).catch(()=>{});
+        navigator.clipboard?.writeText(link).then(()=>showToast("Link copiado")).catch(e => logError('catch', e));
       });
       box.querySelector("#btn-whatsapp-invite").addEventListener("click",()=>{
         const texto=encodeURIComponent(`Te invito a unirte al equipo de Rodix para gestionar la flota de vehículos. Entrá a este link para sumarte: ${link}`);
@@ -993,7 +1009,7 @@ onAuthStateChanged(auth,async user=>{
       try{
         const ownerSnap=await getDoc(doc(db,'usuarios',userDoc.flotaId));
         if(ownerSnap.exists()){userDoc.features=ownerSnap.data().features||{};userDoc.status='activo';}
-      }catch(e){}
+      }catch(e) { logError('catch', e); }
     }
 
     document.getElementById("loading-screen").classList.add("hidden");
@@ -1042,7 +1058,7 @@ function startListening(){
       if(checklistOn){
         insumosData=await new Promise(res=>{const unsub=onSnapshot(collection(db,"vehicles",vDoc.id,"insumos"),s=>{unsub();res(s.docs.map(d=>({id:d.id,...d.data()})));});});
         const hoy=new Date().toISOString().slice(0,10);
-        try{const rSnap=await getDoc(doc(db,"vehicles",vDoc.id,"revisiones",hoy));ultimaRevision=rSnap.exists()?rSnap.data():null;}catch(e){}
+        try{const rSnap=await getDoc(doc(db,"vehicles",vDoc.id,"revisiones",hoy));ultimaRevision=rSnap.exists()?rSnap.data():null;}catch(e) { logError('catch', e); }
       }
       return{...v,docs:docsData,services:svcData,insumos:insumosData,revisionHoy:ultimaRevision,status:calcVehicleStatus(docsData)};
     }));
@@ -1076,7 +1092,7 @@ async function refrescarSilencioso(){
         const insSnap=await getDocs(collection(db,"vehicles",vDoc.id,"insumos"));
         insumosData=insSnap.docs.map(d=>({id:d.id,...d.data()}));
         const hoy=new Date().toISOString().slice(0,10);
-        try{const rSnap=await getDoc(doc(db,"vehicles",vDoc.id,"revisiones",hoy));ultimaRevision=rSnap.exists()?rSnap.data():null;}catch(e){}
+        try{const rSnap=await getDoc(doc(db,"vehicles",vDoc.id,"revisiones",hoy));ultimaRevision=rSnap.exists()?rSnap.data():null;}catch(e) { logError('catch', e); }
       }
       return{...v,docs:docsData,services:svcData,insumos:insumosData,revisionHoy:ultimaRevision,status:calcVehicleStatus(docsData)};
     }));
@@ -1510,6 +1526,36 @@ document.getElementById("btn-google").addEventListener("click",async()=>{
   }
   btn.disabled=false;
 });
+
+// EXPORTAR CSV — P2 ROBUSTEZ
+async function exportarCSV() {
+  try {
+    const uid = flotaOwnerUid ? flotaOwnerUid() : (currentUser ? currentUser.uid : null);
+    if (!uid) { showToast('Iniciá sesión para exportar'); return; }
+    const snap = await getDocs(query(collection(db,'vehicles'), where('ownerUid','==',uid)));
+    const rows = [['Patente','Marca','Modelo','Año','VTV','Seguro','Service','Estado','Kilometraje']];
+    snap.forEach(d => {
+      const v = d.data();
+      rows.push([
+        v.plate||v.patente||'',
+        v.brand||v.marca||'',
+        v.model||v.modelo||'',
+        v.year||v.año||'',
+        v.vtv||'',
+        v.insurance||v.seguro||'',
+        v.service||'',
+        v.status||v.estado||'',
+        v.km||v.kilometraje||''
+      ]);
+    });
+    const csv = rows.map(r => r.map(x => `"${x}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = 'rodix-flota-' + new Date().toISOString().split('T')[0] + '.csv';
+    a.click();
+    showToast('CSV exportado');
+  } catch(e) { logError('exportCSV', e); }
+}
 </script>
 
 <!--
@@ -1609,5 +1655,13 @@ service cloud.firestore {
 2. vehicles/{id}/services | performedAt DESC
 3. usuarios | flotaId ASC, rolFlota ASC
 -->
+
+<script>
+  // SERVICE WORKER — P3 ROBUSTEZ
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/vehigest-ar/sw-rodix.js')
+      .catch(e => console.warn('SW:', e));
+  }
+</script>
 </body>
 </html>
