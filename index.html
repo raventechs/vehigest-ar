@@ -337,6 +337,8 @@ input,select,button,textarea{font-family:var(--font)}
 </style>
 </head>
 <body>
+<div id="offlineBanner" style="display:none;background:#7c3200;color:#ffd9b3;font-size:0.8rem;font-weight:600;text-align:center;padding:6px 12px;">Sin conexion - registros guardados localmente</div>
+<div id="offlineBadgeBox" style="display:none;background:#2a1800;border:1px solid #e67e22;padding:6px 14px;font-size:0.8rem;text-align:center;">Registros pendientes: <strong id="offlineBadgeCount">0</strong></div>
 
 <!-- LOADING -->
 <div id="loading-screen" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#0f1e3d,#1a3060);z-index:9999">
@@ -387,6 +389,7 @@ input,select,button,textarea{font-family:var(--font)}
       </div>
       <button id="btn-equipo-sidebar" class="btn-theme-sidebar hidden">👥 Mi equipo</button>
       <button id="btn-theme-sidebar" class="btn-theme-sidebar">🌙 Modo oscuro</button>
+      <div class="nav-item" data-page="ajustes"><span class="nav-icon">&#9881;</span>Ajustes y backup</div>
       <button id="btn-logout" class="btn-logout">Cerrar sesión</button>
     </div>
   </nav>
@@ -418,6 +421,7 @@ input,select,button,textarea{font-family:var(--font)}
     <div id="page-vehicles" class="page hidden"></div>
     <div id="page-vehicle-detail" class="page hidden"></div>
     <div id="page-alerts" class="page hidden"></div>
+    <div id="page-ajustes" class="page hidden"></div>
   </div>
 </div>
 
@@ -1022,7 +1026,7 @@ onAuthStateChanged(auth,async user=>{
     document.getElementById("sidebar-email").textContent=user.email;
     document.getElementById("tum-email").textContent=user.email;
     aplicarPermisosFlota();
-    startListening();navigateTo("dashboard");
+    startListening();navigateTo("dashboard");initOffline();chequearBackupDiario();
     checkDemo();
   }else{
     currentUser=null;userDoc=null;
@@ -1115,7 +1119,7 @@ document.querySelectorAll(".nav-item[data-page]").forEach(el=>{el.addEventListen
 document.querySelectorAll(".mob-nav-item[data-page]").forEach(el=>{el.addEventListener("click",()=>navigateTo(el.dataset.page));});
 document.getElementById("topbar-alerts-btn").addEventListener("click",()=>navigateTo("alerts"));
 
-function navigateTo(page,extra){
+function navigateTo(page,extra){ if(page==="ajustes"){document.querySelectorAll(".page").forEach(p=>p.classList.add("hidden"));document.querySelectorAll(".nav-item[data-page],.mob-nav-item[data-page]").forEach(e=>{e.classList.toggle("active",e.dataset.page==="ajustes");});document.getElementById("page-ajustes").classList.remove("hidden");renderAjustes();return;}
   if(extra)selectedVehicleId=extra;
   currentPage=page;
   document.querySelectorAll(".nav-item[data-page]").forEach(el=>{el.classList.toggle("active",el.dataset.page===page||(page==="vehicle-detail"&&el.dataset.page==="vehicles"));});
@@ -1364,7 +1368,13 @@ function openInsumoModal(v,existing=null){
     const btn=wrap.querySelector("#modal-save-btn");btn.disabled=true;btn.textContent="Guardando...";
     try{
       if(isEdit)await updateDoc(doc(db,"vehicles",v.id,"insumos",existing.id),{nombre,cantidad});
-      else await addDoc(collection(db,"vehicles",v.id,"insumos"),{nombre,cantidad,presente:true});
+      else {
+          if (!estaOnline) {
+            idbAdd('vehicles_pendientes', {nombre, cantidad, presente:true, _tipo:'insumo', _vehicleId:v.id, fechaLocal:new Date().toISOString()}).then(()=>{actualizarBadge();showToast('Insumo guardado offline');});
+          } else {
+            await addDoc(collection(db,"vehicles",v.id,"insumos"),{nombre,cantidad,presente:true});
+          }
+        }
       closeModal();showToast(isEdit?"Insumo actualizado":"Insumo agregado");
     }catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent=isEdit?"Guardar cambios":"Agregar";}
   });
@@ -1456,8 +1466,14 @@ function openAddVehicleModal(existing=null){
     const data={brand,model,year:parseInt(wrap.querySelector("#f-year").value)||2024,plate,fuel:wrap.querySelector("#f-fuel").value,gnc:wrap.querySelector("#f-gnc").value==="si",km:parseInt(wrap.querySelector("#f-km").value)||0,color:wrap.querySelector("#f-color").value.trim()};
     try{
       if(isEdit)await updateDoc(doc(db,"vehicles",existing.id),data);
-      else await addDoc(collection(db,"vehicles"),{...data,icon:"🚗",uid:currentUser.uid,createdAt:serverTimestamp()});
-      closeModal();showToast(isEdit?"Vehículo actualizado":`${brand} ${model} agregado`);
+      else {
+        if (!estaOnline) {
+          idbAdd('vehicles_pendientes', Object.assign({}, data, {_tipo:'vehicle', uid:currentUser.uid, fechaLocal:new Date().toISOString()})).then(()=>{actualizarBadge();closeModal();showToast('Vehiculo guardado offline');});
+        } else {
+          await addDoc(collection(db,"vehicles"),Object.assign({},data,{uid:currentUser.uid,createdAt:serverTimestamp()}));
+          closeModal(); showToast(isEdit ? "Vehiculo actualizado" : brand + " " + model + " agregado");
+        }
+      }
     }catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent=isEdit?"Guardar cambios":"Guardar vehículo";}
   });
 }
@@ -1481,8 +1497,14 @@ function openAddServiceModal(v,existing=null){
     const data={type:wrap.querySelector("#f-type").value,performedAt:date,km:parseInt(km)||0,nextKm:wrap.querySelector("#f-nextKm").value?parseInt(wrap.querySelector("#f-nextKm").value):null,workshop:wrap.querySelector("#f-workshop").value.trim(),cost:parseInt(wrap.querySelector("#f-cost").value)||0,done:true};
     try{
       if(isEdit)await updateDoc(doc(db,"vehicles",v.id,"services",existing.id),data);
-      else await addDoc(collection(db,"vehicles",v.id,"services"),{...data,createdAt:serverTimestamp()});
-      closeModal();showToast(isEdit?"Service actualizado":"Service registrado");
+      else {
+        if (!estaOnline) {
+          idbAdd('vehicles_pendientes', Object.assign({}, data, {_tipo:'service', _vehicleId:v.id, fechaLocal:new Date().toISOString()})).then(()=>{actualizarBadge();closeModal();showToast('Service guardado offline');});
+        } else {
+          await addDoc(collection(db,"vehicles",v.id,"services"),Object.assign({},data,{createdAt:serverTimestamp()}));
+          closeModal(); showToast(isEdit ? "Service actualizado" : "Service registrado");
+        }
+      }
     }catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent=isEdit?"Guardar cambios":"Guardar service";}
   });
 }
@@ -1662,6 +1684,198 @@ service cloud.firestore {
     navigator.serviceWorker.register('/vehigest-ar/sw-rodix.js')
       .catch(e => console.warn('SW:', e));
   }
+
+// OFFLINE-FIRST Rodix
+let estaOnline = navigator.onLine;
+const IDB_NAME_RODIX = 'rodix-offline';
+let idbRodix = null;
+
+function abrirIDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_NAME_RODIX, 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('vehicles_pendientes'))
+        d.createObjectStore('vehicles_pendientes', { keyPath: 'localId', autoIncrement: true });
+    };
+    req.onsuccess = e => { idbRodix = e.target.result; res(idbRodix); };
+    req.onerror = e => rej(e);
+  });
+}
+
+function idbAdd(store, obj) {
+  return new Promise((res, rej) => {
+    const req = idbRodix.transaction(store, 'readwrite').objectStore(store).add(obj);
+    req.onsuccess = () => res(req.result);
+    req.onerror = e => rej(e);
+  });
+}
+
+function idbGetAll(store) {
+  return new Promise((res, rej) => {
+    const req = idbRodix.transaction(store, 'readonly').objectStore(store).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = e => rej(e);
+  });
+}
+
+function idbDelete(store, key) {
+  return new Promise((res, rej) => {
+    const req = idbRodix.transaction(store, 'readwrite').objectStore(store).delete(key);
+    req.onsuccess = () => res();
+    req.onerror = e => rej(e);
+  });
+}
+
+function actualizarBadge() {
+  if (!idbRodix) return;
+  idbGetAll('vehicles_pendientes').then(items => {
+    const total = items.length;
+    const box = document.getElementById('offlineBadgeBox');
+    const cnt = document.getElementById('offlineBadgeCount');
+    if (box) box.style.display = total > 0 ? '' : 'none';
+    if (cnt) cnt.textContent = total;
+  });
+}
+
+async function sincronizarPendientes() {
+  if (!idbRodix || !estaOnline) return;
+  const items = await idbGetAll('vehicles_pendientes');
+  if (!items.length) return;
+  let ok = 0;
+  for (const item of items) {
+    const localId = item.localId;
+    const data = Object.assign({}, item);
+    delete data.localId; delete data._tipo; delete data._vehicleId; delete data.fechaLocal;
+    try {
+      if (item._tipo === 'vehicle') {
+        await addDoc(collection(db, 'vehicles'), Object.assign({}, data, {createdAt: serverTimestamp()}));
+      } else if (item._tipo === 'service' && item._vehicleId) {
+        await addDoc(collection(db, 'vehicles', item._vehicleId, 'services'), Object.assign({}, data, {createdAt: serverTimestamp()}));
+      } else if (item._tipo === 'insumo' && item._vehicleId) {
+        await addDoc(collection(db, 'vehicles', item._vehicleId, 'insumos'), data);
+      }
+      await idbDelete('vehicles_pendientes', localId);
+      ok++;
+    } catch(e) { console.error('sync error:', e); }
+  }
+  if (ok > 0) { actualizarBadge(); showToast('Registros sincronizados: ' + ok); navigateTo('vehicles'); }
+}
+
+function actualizarEstadoConexion(online) {
+  estaOnline = online;
+  const banner = document.getElementById('offlineBanner');
+  if (banner) banner.style.display = online ? 'none' : 'block';
+  if (online) sincronizarPendientes();
+}
+
+window.addEventListener('online', () => actualizarEstadoConexion(true));
+window.addEventListener('offline', () => actualizarEstadoConexion(false));
+
+function initOffline() {
+  abrirIDB()
+    .then(() => { actualizarEstadoConexion(navigator.onLine); actualizarBadge(); })
+    .catch(e => console.error('IDB error:', e));
+}
+
+// BACKUP Rodix
+async function generarBackup(silencioso) {
+  const uid = currentUser ? currentUser.uid : null;
+  if (!uid) return;
+  try {
+    const vehiclesSnap = await getDocs(query(collection(db, 'vehicles'), where('uid', '==', uid)));
+    const vehiculos = [];
+    for (const vDoc of vehiclesSnap.docs) {
+      const [docsSnap, svcSnap, insSnap, revSnap] = await Promise.all([
+        getDocs(collection(db, 'vehicles', vDoc.id, 'docs')),
+        getDocs(collection(db, 'vehicles', vDoc.id, 'services')),
+        getDocs(collection(db, 'vehicles', vDoc.id, 'insumos')),
+        getDocs(collection(db, 'vehicles', vDoc.id, 'revisiones'))
+      ]);
+      vehiculos.push(Object.assign({_id: vDoc.id}, vDoc.data(), {
+        docs: docsSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
+        services: svcSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
+        insumos: insSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
+        revisiones: revSnap.docs.map(d => Object.assign({_id: d.id}, d.data()))
+      }));
+    }
+    const usuariosSnap = await getDocs(query(collection(db, 'usuarios'), where('flotaId', '==', uid))).catch(() => ({docs:[]}));
+    const invSnap = await getDocs(query(collection(db, 'invitaciones'), where('ownerUid', '==', uid))).catch(() => ({docs:[]}));
+    const fecha = new Date().toISOString().slice(0, 10);
+    const backup = {
+      app: 'Rodix', version: '1.9', fecha: new Date().toISOString(), uid, vehiculos,
+      usuarios: usuariosSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
+      invitaciones: invSnap.docs.map(d => Object.assign({_id: d.id}, d.data()))
+    };
+    const json = JSON.stringify(backup, null, 2);
+    localStorage.setItem('rodix-ultimo-backup', fecha);
+    const el = document.getElementById('ultimoBackupFecha');
+    if (el) el.textContent = fecha;
+    if (!silencioso) {
+      const blob = new Blob([json], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'rodix-backup-' + fecha + '.json'; a.click();
+      URL.revokeObjectURL(url); showToast('Backup descargado');
+    }
+  } catch(e) { console.error('Error backup:', e); if (!silencioso) showToast('Error al generar backup', 'error'); }
+}
+
+async function restaurarBackup(input) {
+  const file = input.files[0]; if (!file) return;
+  const uid = currentUser ? currentUser.uid : null;
+  if (!uid) { showToast('Iniciá sesión primero', 'error'); return; }
+  if (!confirm('Esto agrega los datos del backup a tu cuenta. Continuar?')) { input.value = ''; return; }
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (backup.app !== 'Rodix') { showToast('El archivo no es un backup de Rodix', 'error'); return; }
+    showToast('Restaurando datos...');
+    for (const v of (backup.vehiculos || [])) {
+      const vid = v._id;
+      const vData = Object.assign({}, v);
+      delete vData._id; delete vData.docs; delete vData.services; delete vData.insumos; delete vData.revisiones;
+      await setDoc(doc(db, 'vehicles', vid), Object.assign({}, vData, {uid}));
+      for (const s of (v.services || [])) { const id = s._id; const d = Object.assign({}, s); delete d._id; await setDoc(doc(db, 'vehicles', vid, 'services', id), d); }
+      for (const d of (v.docs || [])) { const id = d._id; const da = Object.assign({}, d); delete da._id; await setDoc(doc(db, 'vehicles', vid, 'docs', id), da); }
+      for (const i of (v.insumos || [])) { const id = i._id; const da = Object.assign({}, i); delete da._id; await setDoc(doc(db, 'vehicles', vid, 'insumos', id), da); }
+      for (const r of (v.revisiones || [])) { const id = r._id; const da = Object.assign({}, r); delete da._id; await setDoc(doc(db, 'vehicles', vid, 'revisiones', id), da); }
+    }
+    showToast('Backup restaurado'); input.value = '';
+    setTimeout(() => location.reload(), 1500);
+  } catch(e) { showToast('Error al restaurar: ' + e.message, 'error'); input.value = ''; }
+}
+
+function chequearBackupDiario() {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const ultimo = localStorage.getItem('rodix-ultimo-backup');
+  const el = document.getElementById('ultimoBackupFecha');
+  if (el && ultimo) el.textContent = ultimo;
+  if (ultimo !== hoy) setTimeout(() => generarBackup(true), 5000);
+}
+
+function renderAjustes() {
+  const el = document.getElementById('page-ajustes');
+  if (!el) return;
+  const ultimo = localStorage.getItem('rodix-ultimo-backup') || '-';
+  el.innerHTML = '<h2 style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">Ajustes</h2>'
+    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;">'
+    + '<div style="font-weight:700;margin-bottom:8px;">Backup de datos</div>'
+    + '<p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Se genera automaticamente una vez por dia. Incluye vehiculos, services, documentos, insumos, usuarios e invitaciones.</p>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
+    + '<button class="btn-save" style="padding:9px 14px;font-size:0.82rem;" onclick="generarBackup(false)">Descargar backup</button>'
+    + '<button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;" onclick="document.getElementById('inputRestaurar').click()">Restaurar backup</button>'
+    + '</div>'
+    + '<input type="file" id="inputRestaurar" accept=".json" style="display:none;" onchange="restaurarBackup(this)">'
+    + '<p style="font-size:0.75rem;color:var(--muted);">Ultimo backup: <span id="ultimoBackupFecha">' + ultimo + '</span></p>'
+    + '</div>'
+    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">'
+    + '<div style="font-weight:700;margin-bottom:8px;">Cuenta</div>'
+    + '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px;">' + (currentUser ? currentUser.email : '-') + '</p>'
+    + '<button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;color:var(--danger);border-color:var(--danger);" onclick="signOut(auth).then(()=>location.reload())">Cerrar sesion</button>'
+    + '</div>';
+}
+
 </script>
 </body>
 </html>
