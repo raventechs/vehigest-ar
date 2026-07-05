@@ -1,7 +1,7 @@
-// sw-rodix.js — Service Worker Rodix v1.9
-// P3 ROBUSTEZ: shell offline para consulta de flota sin WiFi
+// sw-rodix.js — Service Worker Rodix v2.0
+// P3 ROBUSTEZ: shell offline + clone fix
 
-const CACHE_NAME = 'rodix-v1.9';
+const CACHE_NAME = 'rodix-v2.0';
 const SHELL = [
   '/vehigest-ar/',
   '/vehigest-ar/index.html',
@@ -39,7 +39,8 @@ self.addEventListener('fetch', e => {
             (url.origin === self.location.origin ||
              url.hostname.includes('googleapis.com') ||
              url.hostname.includes('gstatic.com'))) {
-          caches.open(CACHE_NAME).then(c => c.put(e.request, response.clone()));
+          const clon = response.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clon));
         }
         return response;
       }).catch(() => {
