@@ -1864,7 +1864,7 @@ function renderAjustes() {
     + '<p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Se genera automaticamente una vez por dia. Incluye vehiculos, services, documentos, insumos, usuarios e invitaciones.</p>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
     + '<button class="btn-save" style="padding:9px 14px;font-size:0.82rem;" onclick="generarBackup(false)">Descargar backup</button>'
-    + '<button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;" onclick="document.getElementById('inputRestaurar').click()">Restaurar backup</button>'
+    + '<button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;" onclick="document.getElementById(&quot;inputRestaurar&quot;).click()">Restaurar backup</button>'
     + '</div>'
     + '<input type="file" id="inputRestaurar" accept=".json" style="display:none;" onchange="restaurarBackup(this)">'
     + '<p style="font-size:0.75rem;color:var(--muted);">Ultimo backup: <span id="ultimoBackupFecha">' + ultimo + '</span></p>'
