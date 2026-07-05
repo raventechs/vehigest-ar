@@ -421,7 +421,24 @@ input,select,button,textarea{font-family:var(--font)}
     <div id="page-vehicles" class="page hidden"></div>
     <div id="page-vehicle-detail" class="page hidden"></div>
     <div id="page-alerts" class="page hidden"></div>
-    <div id="page-ajustes" class="page hidden"></div>
+    <div id="page-ajustes" class="page hidden">
+      <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">Ajustes</h2>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;">
+        <div style="font-weight:700;margin-bottom:8px;">Backup de datos</div>
+        <p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Se genera automaticamente una vez por dia. Incluye vehiculos, services, documentos, insumos, usuarios e invitaciones.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <button class="btn-save" style="padding:9px 14px;font-size:0.82rem;" onclick="generarBackup(false)">Descargar backup</button>
+          <button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;" onclick="document.getElementById('inputRestaurar').click()">Restaurar backup</button>
+        </div>
+        <input type="file" id="inputRestaurar" accept=".json" style="display:none;" onchange="restaurarBackup(this)">
+        <p style="font-size:0.75rem;color:var(--muted);">Ultimo backup: <span id="ultimoBackupFecha">-</span></p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
+        <div style="font-weight:700;margin-bottom:8px;">Cuenta</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px;" id="ajustesCuenta">-</p>
+        <button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;color:var(--danger);border-color:var(--danger);" onclick="signOut(auth).then(()=>location.reload())">Cerrar sesion</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1855,25 +1872,11 @@ function chequearBackupDiario() {
 }
 
 function renderAjustes() {
-  const el = document.getElementById('page-ajustes');
-  if (!el) return;
   const ultimo = localStorage.getItem('rodix-ultimo-backup') || '-';
-  el.innerHTML = '<h2 style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">Ajustes</h2>'
-    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;">'
-    + '<div style="font-weight:700;margin-bottom:8px;">Backup de datos</div>'
-    + '<p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Se genera automaticamente una vez por dia. Incluye vehiculos, services, documentos, insumos, usuarios e invitaciones.</p>'
-    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'
-    + '<button class="btn-save" style="padding:9px 14px;font-size:0.82rem;" onclick="generarBackup(false)">Descargar backup</button>'
-    + '<button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;" onclick="document.getElementById(&quot;inputRestaurar&quot;).click()">Restaurar backup</button>'
-    + '</div>'
-    + '<input type="file" id="inputRestaurar" accept=".json" style="display:none;" onchange="restaurarBackup(this)">'
-    + '<p style="font-size:0.75rem;color:var(--muted);">Ultimo backup: <span id="ultimoBackupFecha">' + ultimo + '</span></p>'
-    + '</div>'
-    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">'
-    + '<div style="font-weight:700;margin-bottom:8px;">Cuenta</div>'
-    + '<p style="font-size:0.82rem;color:var(--muted);margin-bottom:12px;">' + (currentUser ? currentUser.email : '-') + '</p>'
-    + '<button class="btn-cancel" style="padding:9px 14px;font-size:0.82rem;color:var(--danger);border-color:var(--danger);" onclick="signOut(auth).then(()=>location.reload())">Cerrar sesion</button>'
-    + '</div>';
+  const el = document.getElementById('ultimoBackupFecha');
+  if (el) el.textContent = ultimo;
+  const cuenta = document.getElementById('ajustesCuenta');
+  if (cuenta && currentUser) cuenta.textContent = currentUser.email;
 }
 
 </script>
