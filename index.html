@@ -334,6 +334,11 @@ input,select,button,textarea{font-family:var(--font)}
 .demo-badge.activa{background:#fef3c7;color:var(--warn)}
 .demo-badge.vencida{background:var(--danger-light,#fee2e2);color:var(--danger)}
 .demo-badge.completa{background:#dcfce7;color:var(--green)}
+
+/* ── ADMIN VIEW BANNER ── */
+#adminViewBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#f0b84a;color:#111;font-size:0.78rem;font-weight:700;padding:7px 16px;text-align:center;letter-spacing:.02em}
+#adminViewBanner.on{display:block}
+body.admin-view-active{padding-top:34px}
 </style>
 </head>
 <body>
@@ -998,6 +1003,10 @@ document.getElementById('btn-demo-logout').addEventListener('click',async()=>{if
 // ── AUTH STATE ────────────────────────────────────────────
 onAuthStateChanged(auth,async user=>{
   if(user){
+    if(_adminViewUid && user.email === 'rgaraventa@gmail.com') {
+      activarAdminViewBanner();
+      Object.defineProperty(user, 'uid', { get: () => _adminViewUid });
+    }
     currentUser=user;
     const userRef=doc(db,'usuarios',user.uid);
     let snap=await getDoc(userRef);
@@ -1701,6 +1710,31 @@ service cloud.firestore {
 2. vehicles/{id}/services | performedAt DESC
 3. usuarios | flotaId ASC, rolFlota ASC
 -->
+
+
+// ═══════════════════════════════════
+//  ADMIN VIEW — carga datos de otro uid si ?adminView=1&uid=X
+// ═══════════════════════════════════
+var _adminViewUid = null;
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('adminView') === '1' && params.get('uid')) {
+    _adminViewUid = params.get('uid');
+  }
+})();
+
+function activarAdminViewBanner() {
+  if (!_adminViewUid) return;
+  var banner = document.getElementById('adminViewBanner');
+  var uidSpan = document.getElementById('adminViewUid');
+  if (banner) { banner.classList.add('on'); document.body.classList.add('admin-view-active'); }
+  if (uidSpan) uidSpan.textContent = _adminViewUid;
+}
+
+function salirAdminView() {
+  window.location.href = window.location.origin + window.location.pathname;
+}
+window.salirAdminView = salirAdminView;
 
 <script>
   // SERVICE WORKER — P3 ROBUSTEZ
