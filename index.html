@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.8.2
+  RODIX — v1.9 — 2026-08-01 — Seguridad: sanitizeHTML() completada (admin usuarios), App Check SDK preparado
   Fecha de esta versión: 2026-06-24
   Cambios respecto a v1.8.1: el chofer invitado ahora solo ve las
   alertas de "🩹 Insumos" (en Dashboard y en Alertas) — ya no ve
@@ -600,6 +600,7 @@ button[class*="metodo"]:active, button[class*="pago"]:active {
 
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{initializeAppCheck,ReCaptchaV3Provider}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
 import{getAuth,signInWithEmailAndPassword,createUserWithEmailAndPassword,onAuthStateChanged,signOut,GoogleAuthProvider,signInWithPopup}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import{getFirestore,collection,doc,query,orderBy,where,onSnapshot,addDoc,getDocs,getDoc,deleteDoc,updateDoc,setDoc,serverTimestamp,Timestamp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -618,6 +619,10 @@ const firebaseConfig={
  const ADMIN_PIN = "2580";
 
 const firebaseApp=initializeApp(firebaseConfig);
+const APPCHECK_KEY="";
+if(APPCHECK_KEY){
+  initializeAppCheck(firebaseApp,{provider:new ReCaptchaV3Provider(APPCHECK_KEY),isTokenAutoRefreshEnabled:true});
+}
 const auth=getAuth(firebaseApp);
 const db=getFirestore(firebaseApp);
 
@@ -845,12 +850,12 @@ async function loadAdminUsuarios(){
         </div>`;
       }
       return`<div class="admin-card">
-        <div class="admin-card-title">${u.email||d.id}${banned?'<span class="ban-badge">BANEADO</span>':''} ${demoBadge}</div>
+        <div class="admin-card-title">${sanitizeHTML(u.email||d.id)}${banned?'<span class="ban-badge">BANEADO</span>':''} ${demoBadge}</div>
         <div class="admin-card-sub">uid: ${u.uid||'—'}</div>
         ${demoInfo}
         <div class="admin-card-actions" style="margin-top:8px">
           ${banned?`<button class="btn-unban" data-uid="${d.id}">✅ Desbanear</button>`:`<button class="btn-ban" data-uid="${d.id}">🚫 Banear</button>`}
-          <button class="btn-admin-del-user" data-uid="${d.id}" data-email="${u.email||d.id}" style="color:var(--danger)">🗑️ Eliminar usuario</button>
+          <button class="btn-admin-del-user" data-uid="${d.id}" data-email="${sanitizeHTML(u.email||d.id)}" style="color:var(--danger)">🗑️ Eliminar usuario</button>
         </div>
         ${demoActions}
         <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
