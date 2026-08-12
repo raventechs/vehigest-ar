@@ -3,8 +3,8 @@
 
 const CACHE_NAME = 'rodix-v2.0';
 const SHELL = [
-  '/vehigest-ar/',
-  '/vehigest-ar/index.html',
+  '/',
+  '/index.html',
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js',
@@ -44,7 +44,7 @@ self.addEventListener('fetch', e => {
         }
         return response;
       }).catch(() => {
-        if (e.request.mode === 'navigate') return caches.match('/vehigest-ar/index.html');
+        if (e.request.mode === 'navigate') return caches.match('/index.html');
       });
     })
   );
