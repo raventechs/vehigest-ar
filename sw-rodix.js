@@ -1,7 +1,7 @@
 // sw-rodix.js — Service Worker Rodix v2.0
 // P3 ROBUSTEZ: shell offline + clone fix
 
-const CACHE_NAME = 'rodix-v2.0';
+const CACHE_NAME = 'rodix-v2.1';
 const SHELL = [
   '/',
   '/index.html',
@@ -31,6 +31,19 @@ self.addEventListener('fetch', e => {
       url.hostname.includes('securetoken.googleapis.com')) {
     return;
   }
+
+  // Navegación (HTML principal): siempre ir a buscar lo último primero.
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(response => {
+        const clon = response.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clon));
+        return response;
+      }).catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -43,9 +56,7 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE_NAME).then(c => c.put(e.request, clon));
         }
         return response;
-      }).catch(() => {
-        if (e.request.mode === 'navigate') return caches.match('/index.html');
-      });
+      }).catch(() => {});
     })
   );
 });
