@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.9.0
-  Fecha de esta versión: 2026-10-18
+  RODIX — v1.9.1
+  Fecha de esta versión: 2026-10-26
+  v1.9.1: BACKUP ARREGLADO: estaba en un script que no veía la base y fallaba siempre. Ahora baja el archivo una vez por día + copia local,
+  incluye vehículos con documentos, services, insumos y revisiones, y restaura las fechas a su tipo.
   v1.9.0: MODO PRÁCTICA (Ajustes → 🎓): carga una empresa de traslados de ejemplo con 5 vehículos, documentos con
   vencimientos (vencidos, por vencer y vigentes), services con costos y checklist de insumos; todo marcado _demo y se quita con un botón.
   v1.8.2 (2026-06-24):
@@ -1805,6 +1807,143 @@ async function exportarCSV() {
     showToast('CSV exportado');
   } catch(e) { logError('exportCSV', e); }
 }
+
+// ══════════ BACKUP ESTÁNDAR 1.9.1 ══════════
+// Automático: una vez por día al entrar el dueño. Baja el archivo JSON al dispositivo y deja una copia en IndexedDB (las últimas 7).
+// Manual y restaurar: botones de la sección de backup. Las fechas de Firestore (Timestamp) se guardan con una marca reversible.
+// Está dentro del módulo de la app (antes estaba en un script aparte que no veía db, auth ni getDocs y fallaba siempre).
+function _bkHoy() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function _bkSer(v) {
+  if (v && typeof v === 'object') {
+    if (typeof v.toMillis === 'function' && 'seconds' in v && 'nanoseconds' in v) return { __ts: [v.seconds, v.nanoseconds] };
+    if (Array.isArray(v)) return v.map(_bkSer);
+    const o = {}; Object.keys(v).forEach(k => { o[k] = _bkSer(v[k]); }); return o;
+  }
+  return v;
+}
+function _bkRev(v) {
+  if (v && typeof v === 'object') {
+    if (Array.isArray(v)) return v.map(_bkRev);
+    if (Array.isArray(v.__ts) && v.__ts.length === 2) return new Timestamp(v.__ts[0], v.__ts[1]);
+    const o = {}; Object.keys(v).forEach(k => { o[k] = _bkRev(v[k]); }); return o;
+  }
+  return v;
+}
+async function _bkLeer(ref) {
+  const s = await ref.get();
+  return s.docs.map(d => Object.assign({ _id: d.id }, _bkSer(d.data())));
+}
+function _bkIdb(fecha, json) {
+  return new Promise(function (res) {
+    try {
+      const rq = indexedDB.open('rodix-backup', 1);
+      rq.onupgradeneeded = function () { rq.result.createObjectStore('b', { keyPath: 'fecha' }); };
+      rq.onsuccess = function () {
+        const idb = rq.result, tx = idb.transaction('b', 'readwrite'), st = tx.objectStore('b');
+        st.put({ fecha: fecha, json: json });
+        st.getAllKeys().onsuccess = function (e) { const ks = e.target.result.sort(); while (ks.length > 7) st.delete(ks.shift()); };
+        tx.oncomplete = function () { idb.close(); res(true); };
+        tx.onerror = tx.onabort = function () { idb.close(); res(false); };
+      };
+      rq.onerror = function () { res(false); };
+    } catch (e) { res(false); }
+  });
+}
+function _bkDescargar(json, fecha) {
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'rodix-backup-' + fecha + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+}
+async function _bkDocs(q) { const s = await getDocs(q); return s.docs.map(function (d) { return Object.assign({ _id: d.id }, _bkSer(d.data())); }); }
+async function _bkEscribir(ops) {
+  for (let i = 0; i < ops.length; i += 25)
+    await Promise.all(ops.slice(i, i + 25).map(function (o) { return o[2] ? setDoc(o[0], o[1], { merge: true }) : setDoc(o[0], o[1]); }));
+}
+function _bkCfg() { return { app: 'Rodix', ver: '1.9.1', ls: 'rodix-ultimo-backup', label: 'ultimoBackupFecha', sub: ['docs', 'services', 'insumos', 'revisiones'] }; }
+function _bkMsg(m, t) { showToast(m, t === 'err' ? 'error' : 'ok'); }
+function _bkCtx() {
+  if (!currentUser) return { ok: false, msg: 'Iniciá sesión primero' };
+  if (!esOwnerFlota()) return { ok: false, msg: 'Solo el dueño de la flota puede hacer el backup' };
+  return { ok: true, uid: currentUser.uid };
+}
+async function _bkReunir(C) {
+  const vs = await getDocs(query(collection(db, 'vehicles'), where('uid', '==', C.uid)));
+  const vehiculos = [];
+  for (const v of vs.docs) {
+    const sub = {};
+    for (const n of _bkCfg().sub) sub[n] = await _bkDocs(collection(db, 'vehicles', v.id, n));
+    vehiculos.push(Object.assign({ _id: v.id }, _bkSer(v.data()), { _sub: sub }));
+  }
+  const us = await getDocs(query(collection(db, 'usuarios'), where('flotaId', '==', C.uid))).catch(function () { return { docs: [] }; });
+  const inv = await getDocs(query(collection(db, 'invitaciones'), where('ownerUid', '==', C.uid))).catch(function () { return { docs: [] }; });
+  // usuarios e invitaciones quedan como referencia; no se restauran (son cuentas de acceso)
+  return { vehiculos: vehiculos,
+           usuarios: us.docs.map(function (d) { return Object.assign({ _id: d.id }, _bkSer(d.data())); }),
+           invitaciones: inv.docs.map(function (d) { return Object.assign({ _id: d.id }, _bkSer(d.data())); }) };
+}
+function _bkOps(bk, C) {
+  if (!Array.isArray(bk.vehiculos)) throw new Error('el archivo no tiene vehículos');
+  const ops = [];
+  bk.vehiculos.forEach(function (v) {
+    const r = Object.assign({}, v), vid = r._id, sub = r._sub || { docs: r.docs, services: r.services, insumos: r.insumos, revisiones: r.revisiones };
+    delete r._id; delete r._sub; delete r.docs; delete r.services; delete r.insumos; delete r.revisiones;
+    if (!vid) return;
+    const x = _bkRev(r); x.uid = C.uid;
+    ops.push([doc(db, 'vehicles', vid), x]);
+    _bkCfg().sub.forEach(function (n) {
+      (sub[n] || []).forEach(function (d) { const y = Object.assign({}, d), id = y._id; delete y._id; if (id) ops.push([doc(db, 'vehicles', vid, n, id), _bkRev(y)]); });
+    });
+  });
+  return ops;
+}
+
+async function generarBackup(silencioso) {
+  const K = _bkCfg(), C = _bkCtx();
+  if (!C.ok) { if (!silencioso) _bkMsg(C.msg, 'err'); return; }
+  try {
+    if (!silencioso) _bkMsg('Preparando backup…');
+    const datos = await _bkReunir(C);
+    const fecha = _bkHoy();
+    const json = JSON.stringify(Object.assign({ app: K.app, version: K.ver, fecha: new Date().toISOString(), uid: C.uid }, datos));
+    _bkDescargar(json, fecha);
+    await _bkIdb(fecha, json);
+    try { localStorage.setItem(K.ls, fecha); } catch (e) {}
+    const el = document.getElementById(K.label); if (el) el.textContent = fecha;
+    if (!silencioso) _bkMsg('✅ Backup descargado');
+  } catch (e) { logError('generarBackup', e.message); if (!silencioso) _bkMsg('Error al generar backup: ' + e.message, 'err'); }
+}
+async function restaurarBackup(input) {
+  const K = _bkCfg(), C = _bkCtx();
+  const file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    if (!C.ok) { _bkMsg(C.msg, 'err'); return; }
+    const bk = JSON.parse(await file.text());
+    if (bk.app !== K.app) { _bkMsg('El archivo no es un backup de ' + K.app, 'err'); return; }
+    const ops = _bkOps(bk, C);
+    if (!confirm('Se van a volver a cargar ' + ops.length + ' registros en tu cuenta. Los que ya existen se reemplazan por los del archivo; el resto queda como está. ¿Continuar?')) return;
+    _bkMsg('Restaurando…');
+    await _bkEscribir(ops);
+    _bkMsg('✅ Backup restaurado (' + ops.length + ' registros)');
+    setTimeout(function () { location.reload(); }, 1500);
+  } catch (e) { logError('restaurarBackup', e.message); _bkMsg('Error al restaurar: ' + e.message, 'err'); }
+  finally { input.value = ''; }
+}
+function chequearBackupDiario() {
+  const K = _bkCfg(), C = _bkCtx();
+  if (!C.ok) return;
+  let ultimo = null; try { ultimo = localStorage.getItem(K.ls); } catch (e) {}
+  const el = document.getElementById(K.label); if (el && ultimo) el.textContent = ultimo;
+  if (ultimo !== _bkHoy()) setTimeout(function () { generarBackup(true); }, 5000);
+}
+window.generarBackup = generarBackup; window.restaurarBackup = restaurarBackup;
+// ══════════ FIN BACKUP ══════════
 </script>
 
 <!--
@@ -2005,81 +2144,6 @@ function initOffline() {
     .catch(e => console.error('IDB error:', e));
 }
 
-// BACKUP Rodix
-async function generarBackup(silencioso) {
-  const uid = currentUser ? currentUser.uid : null;
-  if (!uid) return;
-  try {
-    const vehiclesSnap = await getDocs(query(collection(db, 'vehicles'), where('uid', '==', uid)));
-    const vehiculos = [];
-    for (const vDoc of vehiclesSnap.docs) {
-      const [docsSnap, svcSnap, insSnap, revSnap] = await Promise.all([
-        getDocs(collection(db, 'vehicles', vDoc.id, 'docs')),
-        getDocs(collection(db, 'vehicles', vDoc.id, 'services')),
-        getDocs(collection(db, 'vehicles', vDoc.id, 'insumos')),
-        getDocs(collection(db, 'vehicles', vDoc.id, 'revisiones'))
-      ]);
-      vehiculos.push(Object.assign({_id: vDoc.id}, vDoc.data(), {
-        docs: docsSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
-        services: svcSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
-        insumos: insSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
-        revisiones: revSnap.docs.map(d => Object.assign({_id: d.id}, d.data()))
-      }));
-    }
-    const usuariosSnap = await getDocs(query(collection(db, 'usuarios'), where('flotaId', '==', uid))).catch(() => ({docs:[]}));
-    const invSnap = await getDocs(query(collection(db, 'invitaciones'), where('ownerUid', '==', uid))).catch(() => ({docs:[]}));
-    const fecha = new Date().toISOString().slice(0, 10);
-    const backup = {
-      app: 'Rodix', version: '1.9', fecha: new Date().toISOString(), uid, vehiculos,
-      usuarios: usuariosSnap.docs.map(d => Object.assign({_id: d.id}, d.data())),
-      invitaciones: invSnap.docs.map(d => Object.assign({_id: d.id}, d.data()))
-    };
-    const json = JSON.stringify(backup, null, 2);
-    localStorage.setItem('rodix-ultimo-backup', fecha);
-    const el = document.getElementById('ultimoBackupFecha');
-    if (el) el.textContent = fecha;
-    if (!silencioso) {
-      const blob = new Blob([json], {type: 'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'rodix-backup-' + fecha + '.json'; a.click();
-      URL.revokeObjectURL(url); showToast('Backup descargado');
-    }
-  } catch(e) { console.error('Error backup:', e); if (!silencioso) showToast('Error al generar backup', 'error'); }
-}
-
-async function restaurarBackup(input) {
-  const file = input.files[0]; if (!file) return;
-  const uid = currentUser ? currentUser.uid : null;
-  if (!uid) { showToast('Iniciá sesión primero', 'error'); return; }
-  if (!confirm('Esto agrega los datos del backup a tu cuenta. Continuar?')) { input.value = ''; return; }
-  try {
-    const text = await file.text();
-    const backup = JSON.parse(text);
-    if (backup.app !== 'Rodix') { showToast('El archivo no es un backup de Rodix', 'error'); return; }
-    showToast('Restaurando datos...');
-    for (const v of (backup.vehiculos || [])) {
-      const vid = v._id;
-      const vData = Object.assign({}, v);
-      delete vData._id; delete vData.docs; delete vData.services; delete vData.insumos; delete vData.revisiones;
-      await setDoc(doc(db, 'vehicles', vid), Object.assign({}, vData, {uid}));
-      for (const s of (v.services || [])) { const id = s._id; const d = Object.assign({}, s); delete d._id; await setDoc(doc(db, 'vehicles', vid, 'services', id), d); }
-      for (const d of (v.docs || [])) { const id = d._id; const da = Object.assign({}, d); delete da._id; await setDoc(doc(db, 'vehicles', vid, 'docs', id), da); }
-      for (const i of (v.insumos || [])) { const id = i._id; const da = Object.assign({}, i); delete da._id; await setDoc(doc(db, 'vehicles', vid, 'insumos', id), da); }
-      for (const r of (v.revisiones || [])) { const id = r._id; const da = Object.assign({}, r); delete da._id; await setDoc(doc(db, 'vehicles', vid, 'revisiones', id), da); }
-    }
-    showToast('Backup restaurado'); input.value = '';
-    setTimeout(() => location.reload(), 1500);
-  } catch(e) { showToast('Error al restaurar: ' + e.message, 'error'); input.value = ''; }
-}
-
-function chequearBackupDiario() {
-  const hoy = new Date().toISOString().slice(0, 10);
-  const ultimo = localStorage.getItem('rodix-ultimo-backup');
-  const el = document.getElementById('ultimoBackupFecha');
-  if (el && ultimo) el.textContent = ultimo;
-  if (ultimo !== hoy) setTimeout(() => generarBackup(true), 5000);
-}
 
 function renderAjustes() {
   const ultimo = localStorage.getItem('rodix-ultimo-backup') || '-';
