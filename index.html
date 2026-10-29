@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.9.1
+  RODIX — v1.9.2
+  v1.9.2: SEGURIDAD — al unirse un chofer se envía inviteId (las reglas nuevas exigen invitación válida). Ajustes ya no tira error. No toca datos.
   Fecha de esta versión: 2026-10-26
   v1.9.1: BACKUP ARREGLADO: estaba en un script que no veía la base y fallaba siempre. Ahora baja el archivo una vez por día + copia local,
   incluye vehículos con documentos, services, insumos y revisiones, y restaura las fechas a su tipo.
@@ -1228,7 +1229,7 @@ onAuthStateChanged(auth,async user=>{
         const invSnap=await getDoc(invRef);
         if(invSnap.exists()&&!invSnap.data().usado&&invSnap.data().ownerUid!==user.uid){
           const inv=invSnap.data();
-          await updateDoc(userRef,{flotaId:inv.ownerUid,rolFlota:'chofer'});
+          await updateDoc(userRef,{flotaId:inv.ownerUid,rolFlota:'chofer',inviteId:pendingInviteId});
           await updateDoc(invRef,{usado:true,usadoPor:user.email,usadoUid:user.uid});
           userDoc.flotaId=inv.ownerUid;userDoc.rolFlota='chofer';
           showToast('Te uniste a la flota correctamente');
@@ -2150,7 +2151,7 @@ function renderAjustes() {
   const el = document.getElementById('ultimoBackupFecha');
   if (el) el.textContent = ultimo;
   const cuenta = document.getElementById('ajustesCuenta');
-  if (cuenta && currentUser) cuenta.textContent = currentUser.email;
+  const _em = document.getElementById('sidebar-email'); if (cuenta && _em && _em.textContent) cuenta.textContent = _em.textContent;
 }
 
 
