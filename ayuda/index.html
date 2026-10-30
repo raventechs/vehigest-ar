@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guía de uso de Rodix</title>
+<style>
+:root{--azul:#0f1e3d;--dorado:#f0b84a;--rojo:#d6224a;--gris:#5b6784;--fondo:#f4f6fb}
+*{box-sizing:border-box} body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:19px;line-height:1.55;color:var(--azul);background:var(--fondo)}
+.wrap{max-width:860px;margin:0 auto;padding:16px}
+header.portada{background:linear-gradient(145deg,#0f1e3d,#1a3060);color:#fff;border-radius:20px;padding:36px 24px;text-align:center;margin-bottom:22px}
+header.portada h1{margin:6px 0 6px;font-size:38px} header.portada h1 span{color:var(--dorado)} header.portada p{margin:0;font-size:20px;opacity:.9}
+nav.indice{background:#fff;border-radius:16px;padding:18px 22px;margin-bottom:22px} nav.indice a{display:block;color:var(--azul);text-decoration:none;padding:7px 0;font-weight:700;border-bottom:1px solid #e6eaf3} nav.indice a:last-child{border:0}
+section{background:#fff;border-radius:18px;padding:22px;margin-bottom:22px;box-shadow:0 2px 10px rgba(15,30,61,.06)}
+h2{margin:0 0 12px;font-size:28px;display:flex;gap:10px;align-items:center} h2 .num{background:var(--dorado);color:var(--azul);border-radius:12px;min-width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:24px}
+h3{font-size:22px;margin:22px 0 8px} p{margin:8px 0}
+.step{display:flex;gap:14px;align-items:flex-start;margin:16px 0} .step .n{flex:0 0 40px;height:40px;border-radius:50%;background:var(--azul);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:20px}
+.step p{margin:4px 0 0;color:#2c3a5a}
+figure{margin:14px auto;text-align:center} figure img{max-width:100%;height:auto;border-radius:18px;border:3px solid #dfe5f1;box-shadow:0 4px 14px rgba(15,30,61,.15)}
+figcaption{font-size:16px;color:var(--gris);margin-top:8px}
+.galeria{display:flex;flex-wrap:wrap;gap:16px;justify-content:center} .galeria figure{margin:8px}
+.aviso{border-left:8px solid var(--dorado);background:#fff8e6;padding:14px 16px;border-radius:10px;margin:16px 0} .ojo{border-left-color:var(--rojo);background:#fff0f3} .ok{border-left-color:#1fa35b;background:#ecfaf2}
+.cuadro{display:grid;grid-template-columns:1fr 1fr;gap:14px} .cuadro>div{border-radius:14px;padding:14px 16px;border:2px solid #dfe5f1} .cuadro h4{margin:0 0 6px;font-size:21px}
+.semaforo span{display:inline-block;padding:4px 14px;border-radius:20px;font-weight:700;margin-right:6px;font-size:17px} .v{background:#dff7e8;color:#12803f} .a{background:#fff0c9;color:#9a6200} .r{background:#ffe0e5;color:#c5163b}
+.phones{display:flex;flex-wrap:wrap;gap:14px;justify-content:center} .phones svg{max-width:100%;height:auto;width:210px}
+details{border:2px solid #dfe5f1;border-radius:12px;padding:10px 14px;margin:10px 0} summary{font-weight:700;cursor:pointer}
+footer{text-align:center;color:var(--gris);font-size:16px;padding:10px 0 30px}
+@media(max-width:620px){body{font-size:18px} .cuadro{grid-template-columns:1fr} header.portada h1{font-size:32px}}
+@media print{body{background:#fff;font-size:14px;line-height:1.45} figure img{width:175px!important} .galeria{gap:6px;flex-wrap:nowrap} .galeria figure{margin:4px} figcaption{font-size:12px} .phones svg{width:165px} h2{font-size:22px} h3{font-size:18px} section{padding:14px;margin-bottom:12px} .step{margin:9px 0} section,header.portada{box-shadow:none;break-inside:avoid-page} nav.indice{display:none} figure,.step,.aviso{break-inside:avoid}}
+</style></head><body><div class="wrap">
+
+<header class="portada"><div style="font-size:54px">🚑</div><h1>Ro<span>dix</span></h1><p>Guía de uso paso a paso</p><p style="font-size:16px;margin-top:10px;opacity:.75">Para dueños de flota y choferes</p></header>
+
+<nav class="indice"><b style="font-size:21px">¿Qué querés hacer?</b>
+<a href="#que-es">1. ¿Qué es Rodix y quién hace qué?</a>
+<a href="#instalar">2. Instalar la app desde el link que te enviaron</a>
+<a href="#cuenta">3. Crear tu cuenta y entrar</a>
+<a href="#pantallas">4. Conocer las pantallas</a>
+<a href="#vehiculos">5. Cargar vehículos, documentos y services</a>
+<a href="#alertas">6. Alertas: qué te avisa la app</a>
+<a href="#checklist">7. Checklist de insumos de la ambulancia</a>
+<a href="#choferes">8. Invitar a un chofer (paso a paso)</a>
+<a href="#chofer">9. Si sos chofer: tu día a día</a>
+<a href="#ayuda">10. Preguntas frecuentes y ayuda</a></nav>
+
+<section id="que-es"><h2><span class="num">1</span> ¿Qué es Rodix?</h2>
+<p>Rodix es una app para <b>controlar los vehículos de la empresa</b> desde el celular: te avisa cuándo vencen la VTV, el seguro y otros papeles, guarda los services con sus gastos y, en las ambulancias, ayuda a <b>revisar todos los días que estén los insumos</b> (jeringas, gasas, oxígeno, etc.).</p>
+<div class="cuadro">
+<div><h4>👤 Dueño de la flota</h4><p>Carga vehículos, documentos y services. Ve las alertas. Invita y quita choferes. Arma el checklist de insumos.</p></div>
+<div><h4>🚐 Chofer</h4><p>Ve los vehículos de la flota y <b>revisa y tilda los insumos</b> de la ambulancia. <b>No puede editar ni borrar nada.</b></p></div></div>
+<div class="aviso ok"><b>Funciona sin internet.</b> Si te quedás sin señal, lo que cargues se guarda en el teléfono y se sube solo cuando vuelve la conexión.</div></section>
+
+<section id="instalar"><h2><span class="num">2</span> Instalar la app desde el link</h2>
+<p>Rodix <b>no se baja de la Play Store ni de la App Store</b>. Se instala directo desde el link que te enviaron, en menos de un minuto.</p>
+<div class="aviso ojo"><b>Importante:</b> si el link te llegó por WhatsApp, al tocarlo se puede abrir dentro de WhatsApp. Tocá los <b>3 puntitos ⋮</b> de arriba a la derecha y elegí <b>«Abrir en Chrome»</b> (Android) o <b>«Abrir en Safari»</b> (iPhone). Si no, la app no se puede instalar ni entrar con Google.</div>
+
+<h3>📱 Si tenés Android (Samsung, Motorola, Xiaomi…)</h3>
+<div class="phones"><svg viewBox="0 0 220 400" width="220" height="400" role="img" aria-hidden="true"><rect x="2" y="2" width="216" height="396" rx="28" fill="#fff" stroke="#0f1e3d" stroke-width="4"/><rect x="2" y="2" width="216" height="64" rx="26" fill="#eef1f7"/><rect x="14" y="20" width="150" height="30" rx="15" fill="#fff" stroke="#c9d0e0"/><text x="24" y="40" font-size="10.5" font-weight="500" fill="#3a4a6b" font-family="Arial,sans-serif" text-anchor="start">rodix.raventechsapp…</text><circle cx="196" cy="25" r="3" fill="#0f1e3d"/><circle cx="196" cy="35" r="3" fill="#0f1e3d"/><circle cx="196" cy="45" r="3" fill="#0f1e3d"/><rect x="180" y="14" width="32" height="42" rx="12" fill="none" stroke="#ff2d55" stroke-width="4"/><rect x="30" y="110" width="160" height="200" rx="16" fill="#0f1e3d"/><text x="110" y="205" font-size="26" font-weight="800" fill="#fff" font-family="Arial,sans-serif" text-anchor="middle">Rodix</text><text x="110" y="350" font-size="13" font-weight="700" fill="#ff2d55" font-family="Arial,sans-serif" text-anchor="middle">1) Tocá los 3 puntitos</text></svg><svg viewBox="0 0 220 400" width="220" height="400" role="img" aria-hidden="true"><rect x="2" y="2" width="216" height="396" rx="28" fill="#fff" stroke="#0f1e3d" stroke-width="4"/><rect x="2" y="2" width="216" height="64" rx="26" fill="#eef1f7"/><rect x="30" y="76" width="180" height="250" rx="14" fill="#fff" stroke="#c9d0e0" stroke-width="2"/><text x="44" y="104" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Nueva pestaña</text><text x="44" y="134" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Historial</text><text x="44" y="164" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Descargas</text><rect x="34" y="176" width="172" height="34" rx="8" fill="#fff3f5"/><text x="44" y="198" font-size="13" font-weight="800" fill="#c5163b" font-family="Arial,sans-serif" text-anchor="start">Instalar aplicación</text><rect x="33" y="175" width="174" height="36" rx="8" fill="none" stroke="#ff2d55" stroke-width="4"/><text x="44" y="232" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Compartir…</text><text x="44" y="262" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Buscar en la página</text><text x="44" y="292" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Configuración</text><text x="110" y="360" font-size="12.5" font-weight="700" fill="#ff2d55" font-family="Arial,sans-serif" text-anchor="middle">2) Tocá «Instalar aplicación»</text></svg><svg viewBox="0 0 220 400" width="220" height="400" role="img" aria-hidden="true"><rect x="2" y="2" width="216" height="396" rx="28" fill="#fff" stroke="#0f1e3d" stroke-width="4"/><rect x="2" y="2" width="216" height="396" rx="28" fill="#dfe7f5"/><rect x="84" y="150" width="52" height="52" rx="12" fill="#0f1e3d"/><path d="M96 182l3-9c.5-1.6 2-2.7 3.700-2.700h15c1.700 0 3.200 1.100 3.700 2.700l3 9v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1h-17v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" fill="#f0b84a"/><text x="110" y="218" font-size="12" font-weight="700" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="middle">Rodix</text><rect x="78" y="144" width="64" height="86" rx="12" fill="none" stroke="#ff2d55" stroke-width="4"/><rect x="20" y="60" width="52" height="52" rx="12" fill="#0f1e3d"/><path d="M32 92l3-9c.5-1.6 2-2.7 3.700-2.700h15c1.700 0 3.200 1.100 3.700 2.700l3 9v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1h-17v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" fill="#f0b84a"/><text x="46" y="128" font-size="12" font-weight="700" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="middle">Mail</text><rect x="148" y="60" width="52" height="52" rx="12" fill="#0f1e3d"/><path d="M160 92l3-9c.5-1.6 2-2.7 3.700-2.700h15c1.700 0 3.200 1.100 3.700 2.700l3 9v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1h-17v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" fill="#f0b84a"/><text x="174" y="128" font-size="12" font-weight="700" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="middle">Fotos</text><text x="110" y="350" font-size="12.5" font-weight="700" fill="#ff2d55" font-family="Arial,sans-serif" text-anchor="middle">3) ¡Listo! Ya está en tu pantalla</text></svg></div>
+<div class="step"><div class="n">1</div><div><b>Abrí el link en Chrome</b></div></div>
+<div class="step"><div class="n">2</div><div><b>Tocá los 3 puntitos ⋮</b><p>Están arriba a la derecha.</p></div></div>
+<div class="step"><div class="n">3</div><div><b>Tocá «Instalar aplicación»</b><p>En algunos teléfonos dice «Agregar a la pantalla principal». Confirmá con «Instalar».</p></div></div>
+<div class="step"><div class="n">4</div><div><b>Buscá el ícono de Rodix</b><p>Aparece en tu pantalla, como cualquier otra app. Ya podés abrirla desde ahí.</p></div></div>
+
+<h3>🍎 Si tenés iPhone</h3>
+<div class="phones"><svg viewBox="0 0 220 400" width="220" height="400" role="img" aria-hidden="true"><rect x="2" y="2" width="216" height="396" rx="28" fill="#fff" stroke="#0f1e3d" stroke-width="4"/><rect x="30" y="110" width="160" height="150" rx="16" fill="#0f1e3d"/><text x="110" y="195" font-size="26" font-weight="800" fill="#fff" font-family="Arial,sans-serif" text-anchor="middle">Rodix</text><rect x="2" y="330" width="216" height="68" rx="0" fill="#eef1f7"/><rect x="2" y="340" width="216" height="58" rx="26" fill="#eef1f7"/><rect x="92" y="352" width="36" height="34" rx="6" fill="none" stroke="#2457d6" stroke-width="3"/><path d="M110 372V356m-6 6l6-6 6 6" fill="none" stroke="#2457d6" stroke-width="3"/><rect x="86" y="346" width="48" height="46" rx="10" fill="none" stroke="#ff2d55" stroke-width="4"/><text x="110" y="320" font-size="12.5" font-weight="700" fill="#ff2d55" font-family="Arial,sans-serif" text-anchor="middle">1) Tocá «Compartir»</text></svg><svg viewBox="0 0 220 400" width="220" height="400" role="img" aria-hidden="true"><rect x="2" y="2" width="216" height="396" rx="28" fill="#fff" stroke="#0f1e3d" stroke-width="4"/><rect x="2" y="60" width="216" height="338" rx="24" fill="#f4f6fb" stroke="#c9d0e0" stroke-width="2"/><text x="20" y="96" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Copiar</text><text x="20" y="126" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Agregar a favoritos</text><rect x="14" y="140" width="192" height="34" rx="8" fill="#fff3f5"/><text x="24" y="162" font-size="13" font-weight="800" fill="#c5163b" font-family="Arial,sans-serif" text-anchor="start">Agregar a inicio</text><rect x="13" y="139" width="194" height="36" rx="8" fill="none" stroke="#ff2d55" stroke-width="4"/><text x="20" y="196" font-size="13" font-weight="400" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="start">Imprimir</text><text x="110" y="36" font-size="12.5" font-weight="700" fill="#ff2d55" font-family="Arial,sans-serif" text-anchor="middle">2) Tocá «Agregar a inicio»</text></svg><svg viewBox="0 0 220 400" width="220" height="400" role="img" aria-hidden="true"><rect x="2" y="2" width="216" height="396" rx="28" fill="#fff" stroke="#0f1e3d" stroke-width="4"/><rect x="2" y="2" width="216" height="396" rx="28" fill="#dfe7f5"/><rect x="84" y="150" width="52" height="52" rx="12" fill="#0f1e3d"/><path d="M96 182l3-9c.5-1.6 2-2.7 3.700-2.700h15c1.700 0 3.200 1.100 3.700 2.700l3 9v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1h-17v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" fill="#f0b84a"/><text x="110" y="218" font-size="12" font-weight="700" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="middle">Rodix</text><rect x="78" y="144" width="64" height="86" rx="12" fill="none" stroke="#ff2d55" stroke-width="4"/><rect x="20" y="60" width="52" height="52" rx="12" fill="#0f1e3d"/><path d="M32 92l3-9c.5-1.6 2-2.7 3.700-2.700h15c1.700 0 3.200 1.100 3.700 2.700l3 9v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1h-17v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" fill="#f0b84a"/><text x="46" y="128" font-size="12" font-weight="700" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="middle">Mail</text><rect x="148" y="60" width="52" height="52" rx="12" fill="#0f1e3d"/><path d="M160 92l3-9c.5-1.6 2-2.7 3.700-2.700h15c1.700 0 3.200 1.100 3.700 2.700l3 9v6a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1h-17v1a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" fill="#f0b84a"/><text x="174" y="128" font-size="12" font-weight="700" fill="#0f1e3d" font-family="Arial,sans-serif" text-anchor="middle">Fotos</text><text x="110" y="350" font-size="12.5" font-weight="700" fill="#ff2d55" font-family="Arial,sans-serif" text-anchor="middle">3) Tocá «Agregar» y listo</text></svg></div>
+<div class="step"><div class="n">1</div><div><b>Abrí el link en Safari</b><p>Tiene que ser Safari (la brújula azul), no Chrome.</p></div></div>
+<div class="step"><div class="n">2</div><div><b>Tocá el botón «Compartir»</b><p>Es el cuadradito con una flecha hacia arriba, abajo en el centro.</p></div></div>
+<div class="step"><div class="n">3</div><div><b>Bajá y tocá «Agregar a inicio»</b><p>Después tocá «Agregar» arriba a la derecha.</p></div></div>
+<div class="step"><div class="n">4</div><div><b>Abrí Rodix desde su ícono</b><p>Quedó en tu pantalla de inicio.</p></div></div>
+</section>
+
+<section id="cuenta"><h2><span class="num">3</span> Crear tu cuenta y entrar</h2>
+<div class="galeria"><figure><img src="img/01-login.jpg" alt="Pantalla de entrada" width="260"><figcaption>Pantalla de entrada</figcaption></figure><figure><img src="img/02-registro.jpg" alt="Crear cuenta nueva" width="260"><figcaption>Crear cuenta nueva</figcaption></figure></div>
+<h3>Si sos dueño de flota</h3>
+<div class="step"><div class="n">1</div><div><b>Tocá «Registrarse»</b></div></div><div class="step"><div class="n">2</div><div><b>Escribí tu email y una clave</b><p>Elegí una clave que recuerdes: la app <b>no tiene botón de «olvidé mi clave»</b>. Anotala en un lugar seguro. También podés entrar con el botón de Google.</p></div></div>
+<div class="step"><div class="n">3</div><div><b>Tocá «Crear cuenta»</b></div></div>
+<div class="aviso"><b>Cuenta de prueba:</b> la cuenta nueva empieza en modo demo de 24 horas. Para seguir usándola, escribinos a <b>ventas@raventechsapp.com</b> y te la activamos.</div>
+<h3>Si sos chofer</h3>
+<p>No te registres por tu cuenta: usá <b>el link de invitación</b> que te mandó el dueño (mirá la parte 9). Así entrás directo a la flota, sin demo.</p></section>
+
+<section id="pantallas"><h2><span class="num">4</span> Conocer las pantallas</h2>
+<p>Abajo hay <b>3 botones</b> que siempre están a mano:</p>
+<div class="galeria"><figure><img src="img/05-inicio.jpg" alt="INICIO: resumen de la flota y estado de cada vehículo" width="260"><figcaption>INICIO: resumen de la flota y estado de cada vehículo</figcaption></figure><figure><img src="img/06-vehiculos.jpg" alt="VEHÍCULOS: la lista completa y el botón para agregar" width="260"><figcaption>VEHÍCULOS: la lista completa y el botón para agregar</figcaption></figure><figure><img src="img/14-alertas.jpg" alt="ALERTAS: lo que vence o falta" width="260"><figcaption>ALERTAS: lo que vence o falta</figcaption></figure></div>
+<div class="aviso">Arriba a la derecha está tu <b>círculo con tus iniciales</b>. Tocándolo ves tu email, «Mi equipo» (si tu plan lo incluye) y «Cerrar sesión».</div>
+<figure><img src="img/03-menu-usuario.jpg" alt="El menú del círculo de iniciales: acá está «Mi equipo»" width="260"><figcaption>El menú del círculo de iniciales: acá está «Mi equipo»</figcaption></figure></section>
+
+<section id="vehiculos"><h2><span class="num">5</span> Cargar vehículos, documentos y services</h2>
+<h3>Agregar un vehículo</h3>
+<div class="step"><div class="n">1</div><div><b>Entrá a «Vehículos» y tocá «+ Agregar vehículo»</b></div></div><div class="step"><div class="n">2</div><div><b>Completá marca, modelo, patente y kilometraje</b><p>Con eso alcanza. El resto es opcional.</p></div></div><div class="step"><div class="n">3</div><div><b>Tocá «Guardar»</b></div></div>
+<figure><img src="img/07-agregar-vehiculo.jpg" alt="Formulario para agregar un vehículo" width="260"><figcaption>Formulario para agregar un vehículo</figcaption></figure>
+<div class="aviso">Cada plan tiene un <b>límite de vehículos</b>. Si llegás al límite, la app te lo avisa: escribinos y lo ampliamos.</div>
+<h3>Cargar un documento (VTV, seguro, oblea de GNC, patente…)</h3>
+<div class="step"><div class="n">1</div><div><b>Tocá el vehículo para ver su ficha</b></div></div><div class="step"><div class="n">2</div><div><b>Tocá «+ Documento»</b></div></div><div class="step"><div class="n">3</div><div><b>Elegí el tipo y poné la fecha de vencimiento</b><p>La app te avisa antes de que venza.</p></div></div>
+<div class="galeria"><figure><img src="img/08-detalle-vehiculo.jpg" alt="Ficha del vehículo" width="260"><figcaption>Ficha del vehículo</figcaption></figure><figure><img src="img/09-documentos.jpg" alt="Pestaña «Documentos»" width="260"><figcaption>Pestaña «Documentos»</figcaption></figure><figure><img src="img/10-cargar-documento.jpg" alt="Cargar un documento" width="260"><figcaption>Cargar un documento</figcaption></figure></div>
+<h3>Registrar un service o arreglo</h3>
+<div class="step"><div class="n">1</div><div><b>En la ficha tocá «+ Service»</b></div></div><div class="step"><div class="n">2</div><div><b>Elegí el tipo (cambio de aceite, frenos, cubiertas…)</b><p>Poné fecha, kilómetros, taller y costo. La app suma el <b>gasto total</b> del vehículo.</p></div></div>
+<div class="galeria"><figure><img src="img/11-services.jpg" alt="Historial de services" width="260"><figcaption>Historial de services</figcaption></figure><figure><img src="img/12-registrar-service.jpg" alt="Registrar un service" width="260"><figcaption>Registrar un service</figcaption></figure></div>
+<div class="semaforo"><p>El estado de cada vehículo se ve con colores:</p><span class="v">Al día</span> <span class="a">Atención (vence pronto)</span> <span class="r">Crítico (vencido)</span></div></section>
+
+<section id="alertas"><h2><span class="num">6</span> Alertas</h2>
+<p>En la campanita 🔔 y en el botón <b>Alertas</b> ves lo que necesita atención, ordenado por urgencia:</p>
+<ul><li><b>Acción inmediata:</b> ya venció algo o falta un insumo.</li><li><b>Próximos a vencer:</b> falta poco; conviene renovar.</li><li><b>Insumos:</b> faltan elementos en una ambulancia o no se hizo la revisión de hoy.</li></ul>
+<p>Tocá una alerta para ir directo al vehículo.</p></section>
+
+<section id="checklist"><h2><span class="num">7</span> Checklist de insumos (ambulancias)</h2>
+<div class="aviso">Esta función se habilita según tu plan. Si no ves la pestaña <b>«Insumos»</b> en la ficha del vehículo, escribinos a ventas@raventechsapp.com.</div>
+<h3>Armar la lista (dueño)</h3>
+<div class="step"><div class="n">1</div><div><b>Entrá a la ficha de la ambulancia y tocá la pestaña «Insumos»</b></div></div><div class="step"><div class="n">2</div><div><b>Tocá «＋ Crear checklist (plantilla)»</b><p>La app carga una lista base: jeringas, bisoprolol, jarabe, tubo de oxígeno, mascarilla, gasas y vendas.</p></div></div><div class="step"><div class="n">3</div><div><b>Ajustá la lista</b><p>Con «+ Agregar ítem» sumás elementos; con ✏️ cambiás nombre o cantidad; con 🗑 borrás un ítem de la lista.</p></div></div>
+<figure><img src="img/13-insumos-dueno.jpg" alt="Lista de insumos. Los ítems en rojo son los que faltan" width="300"><figcaption>Lista de insumos. Los ítems en rojo son los que faltan</figcaption></figure>
+<h3>Cómo se usa todos los días</h3>
+<div class="step"><div class="n">1</div><div><b>Revisá la ambulancia</b><p>Mirá cada elemento de la lista.</p></div></div><div class="step"><div class="n">2</div><div><b>Destildá lo que falta</b><p>El casillero ✅ significa «está». Si lo destildás, el ítem se pone <b>rojo</b> y se genera una alerta para el dueño.</p></div></div><div class="step"><div class="n">3</div><div><b>Tocá «Confirmar revisión de hoy»</b><p>Queda registrado <b>quién la hizo y a qué hora</b>. Se confirma una vez por día y por vehículo.</p></div></div></section>
+
+<section id="choferes"><h2><span class="num">8</span> Invitar a un chofer (paso a paso)</h2>
+<div class="aviso ok">Esto lo hace el <b>dueño</b>. Cada link sirve <b>una sola vez</b> y para una sola persona.</div>
+<div class="step"><div class="n">1</div><div><b>Tocá tu círculo de iniciales (arriba a la derecha)</b></div></div><div class="step"><div class="n">2</div><div><b>Tocá «Mi equipo»</b></div></div>
+<figure><img src="img/15-mi-equipo.jpg" alt="Ventana «Mi equipo»" width="280"><figcaption>Ventana «Mi equipo»</figcaption></figure>
+<div class="step"><div class="n">3</div><div><b>Tocá «Generar link de invitación»</b></div></div><div class="step"><div class="n">4</div><div><b>Enviáselo al chofer</b><p>Tocá <b>«WhatsApp»</b> para mandarlo directo, o <b>«Copiar»</b> para pegarlo donde quieras.</p></div></div>
+<figure><img src="img/16-link-invitacion.jpg" alt="Link generado: «Copiar» o «WhatsApp»" width="280"><figcaption>Link generado: «Copiar» o «WhatsApp»</figcaption></figure>
+<h3>Más cosas que podés hacer</h3>
+<ul><li><b>Ver quién está en tu equipo:</b> abajo, en «Miembros del equipo».</li><li><b>Quitar a un chofer:</b> tocá «Quitar» al lado de su email y confirmá. Deja de ver los vehículos. <b>No se borra ningún dato.</b></li><li>Si el chofer no puede entrar, generá un link nuevo (el anterior ya no sirve si se usó).</li></ul>
+<div class="aviso ojo"><b>Cuidá el link:</b> quien lo abra primero se une a tu flota. Mandalo solo a la persona indicada.</div></section>
+
+<section id="chofer"><h2><span class="num">9</span> Si sos chofer: tu día a día</h2>
+<h3>La primera vez</h3>
+<div class="step"><div class="n">1</div><div><b>Abrí el link que te mandó el dueño</b><p>Si te abre dentro de WhatsApp, tocá ⋮ y «Abrir en Chrome» (o Safari en iPhone). Instalá la app (parte 2).</p></div></div><div class="step"><div class="n">2</div><div><b>Tocá «Registrarse», poné tu email y una clave, y «Crear cuenta»</b><p>Anotá tu clave: no hay botón para recuperarla.</p></div></div>
+<figure><img src="img/19-chofer-registro.jpg" alt="Registro del chofer desde el link de invitación" width="260"><figcaption>Registro del chofer desde el link de invitación</figcaption></figure>
+<p>Si todo salió bien, aparece el mensaje <b>«Te uniste a la flota correctamente»</b> y ya ves los vehículos.</p>
+<div class="galeria"><figure><img src="img/20-chofer-inicio.jpg" alt="Inicio del chofer: solo ve los insumos" width="260"><figcaption>Inicio del chofer: solo ve los insumos</figcaption></figure><figure><img src="img/21-chofer-vehiculos.jpg" alt="Lista de vehículos de la flota" width="260"><figcaption>Lista de vehículos de la flota</figcaption></figure></div>
+<h3>Todos los días</h3>
+<div class="step"><div class="n">1</div><div><b>Entrá a «Vehículos» y elegí la ambulancia</b></div></div><div class="step"><div class="n">2</div><div><b>Revisá los insumos y destildá los que faltan</b></div></div><div class="step"><div class="n">3</div><div><b>Tocá «Confirmar revisión de hoy»</b></div></div>
+<div class="galeria"><figure><img src="img/22-chofer-checklist.jpg" alt="Casillero ✅ = está / vacío = falta" width="260"><figcaption>Casillero ✅ = está / vacío = falta</figcaption></figure><figure><img src="img/23-chofer-tildar.jpg" alt="Al terminar: «Confirmar revisión de hoy»" width="260"><figcaption>Al terminar: «Confirmar revisión de hoy»</figcaption></figure></div>
+<div class="aviso">Como chofer <b>no podés editar ni borrar</b> vehículos, documentos ni services: eso lo hace solo el dueño.</div></section>
+
+<section id="ayuda"><h2><span class="num">10</span> Preguntas frecuentes</h2>
+<details><summary>El link dice que «ya fue usado»</summary><p>Cada link sirve una sola vez. Pedile al dueño que genere uno nuevo en «Mi equipo».</p></details>
+<details><summary>No veo la opción «Mi equipo»</summary><p>Aparece solo si tu plan incluye equipo y vos sos el dueño. Los choferes no la ven. Escribinos a ventas@raventechsapp.com.</p></details>
+<details><summary>No veo la pestaña «Insumos»</summary><p>El checklist se habilita según el plan. Si tu plan lo incluye y no aparece, avisanos.</p></details>
+<details><summary>No puedo entrar con Google desde el link de WhatsApp</summary><p>Abrí el link en Chrome o Safari (no dentro de WhatsApp). Si sigue sin andar, registrate con email y clave.</p></details>
+<details><summary>Se me olvidó la clave</summary><p>La app todavía no tiene recuperación automática. Escribinos a ventas@raventechsapp.com y te ayudamos.</p></details>
+<details><summary>Me quedé sin internet, ¿pierdo lo que cargué?</summary><p>No. Se guarda en el teléfono y se sube solo cuando vuelve la señal. Arriba aparece el aviso «Sin conexión».</p></details>
+<details><summary>Dice «Tu demo de 24hs terminó»</summary><p>Tu cuenta de prueba venció. Escribinos y la activamos; <b>tus datos siguen guardados</b>.</p></details>
+<details><summary>¿Cómo cierro sesión?</summary><p>Tocá tu círculo de iniciales y elegí «Cerrar sesión».</p></details>
+<div class="aviso ok"><b>Soporte:</b> ventas@raventechsapp.com</div></section>
+
+<footer>Rodix · RavenTechs · Guía de uso v1.0</footer></div></body></html>
