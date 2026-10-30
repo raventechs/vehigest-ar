@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.9.2
+  RODIX — v1.9.3
+  v1.9.3: en el celular, el menú del círculo de iniciales suma «⚙️ Ajustes y backup» (modo práctica y backup); y el aviso para instalar la app ahora se ve. Solo agrega botones, no toca datos.
   v1.9.2: SEGURIDAD — al unirse un chofer se envía inviteId (las reglas nuevas exigen invitación válida). Ajustes ya no tira error. No toca datos.
   Fecha de esta versión: 2026-10-26
   v1.9.1: BACKUP ARREGLADO: estaba en un script que no veía la base y fallaba siempre. Ahora baja el archivo una vez por día + copia local,
@@ -551,6 +552,7 @@ var __rtPWA = (function() {
         <div id="topbar-user-menu" class="hidden" style="position:absolute;top:48px;right:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);min-width:200px;z-index:300;padding:8px;">
           <div id="tum-email" style="font-size:12px;color:var(--muted);padding:8px 10px 10px;border-bottom:1px solid var(--border);margin-bottom:6px;word-break:break-all">—</div>
           <button id="btn-equipo-mob" class="hidden" style="width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px">👥 Mi equipo</button>
+          <button id="btn-ajustes-mob" style="width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px">⚙️ Ajustes y backup</button>
           <button id="btn-theme-mob" style="width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text);display:flex;align-items:center;gap:8px">🌙 Modo oscuro</button>
           <button id="btn-logout-mob" style="width:100%;text-align:left;background:none;border:none;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:var(--danger);display:flex;align-items:center;gap:8px">⏻ Cerrar sesión</button>
         </div>
@@ -638,6 +640,12 @@ var __rtPWA = (function() {
   </div>
 </div>
 
+<!-- BANNER INSTALAR APP (v1.9.3) — se muestra solo si el navegador permite instalar -->
+<div id="bannerPWA" style="display:none;position:fixed;left:10px;right:10px;bottom:76px;z-index:9000;background:#0f1e3d;color:#fff;border-radius:14px;padding:12px 14px;align-items:center;gap:10px;box-shadow:0 6px 24px rgba(0,0,0,.35);font-size:14px">
+  <span style="flex:1">📲 <b>Instalá Rodix</b> en tu teléfono para abrirla como una app.</span>
+  <button onclick="__rtPWA.instalar()" style="background:#f0b84a;color:#0f1e3d;border:none;border-radius:10px;padding:8px 14px;font-weight:800;cursor:pointer">Instalar</button>
+  <button onclick="__rtPWA.rechazar()" aria-label="Cerrar" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer">✕</button>
+</div>
 <div id="modal-container"></div>
 <!-- DEMO VENCIDA -->
 <div id="demo-wall">
@@ -1167,6 +1175,7 @@ document.addEventListener("click",e=>{
   }
 });
 document.getElementById("btn-theme-mob").addEventListener("click",()=>{toggleTheme();document.getElementById("topbar-user-menu").classList.add("hidden");});
+document.getElementById("btn-ajustes-mob").addEventListener("click",()=>{document.getElementById("topbar-user-menu").classList.add("hidden");navigateTo("ajustes");const t=document.getElementById("topbar-title");if(t)t.textContent="Ajustes";window.scrollTo(0,0);});
 document.getElementById("btn-equipo-mob").addEventListener("click",()=>{document.getElementById("topbar-user-menu").classList.add("hidden");openEquipoModal();});
 document.getElementById("btn-logout-mob").addEventListener("click",async()=>{
   document.getElementById("topbar-user-menu").classList.add("hidden");
@@ -1274,6 +1283,7 @@ function aplicarPermisosFlota(){
   const puedeEquipo=!!userDoc?.features?.flotaHabilitada&&!esChofer;
   document.getElementById('btn-equipo-sidebar')?.classList.toggle('hidden',!puedeEquipo);
   document.getElementById('btn-equipo-mob')?.classList.toggle('hidden',!puedeEquipo);
+  document.getElementById('btn-ajustes-mob')?.classList.toggle('hidden',esChofer);
   refreshEquipoMiembros();
 }
 
