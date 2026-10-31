@@ -1073,8 +1073,8 @@ async function loadAdminUsuarios(){
           demoInfo='<div style="font-size:11px;color:#dc2626;margin-top:4px">Demo vencida</div>';
         }
         demoActions=`<div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <input type="number" min="1" max="30" value="7" style="width:56px;padding:6px;border:1.5px solid #dde1ec;border-radius:6px;font-size:12px;font-family:var(--font)" data-ext-uid="${d.id}"/>
-          <button class="btn-aext" data-uid="${d.id}">⏱ Extender</button>
+          <button class="btn-aext" data-uid="${d.id}" data-dias="7">⏱ +7 días</button>
+        <button class="btn-aext" data-uid="${d.id}" data-dias="30">⏱ +30 días</button>
           <button class="btn-aact" data-uid="${d.id}">✅ Activar</button>
         </div>`;
       }
@@ -1128,7 +1128,7 @@ document.getElementById('admin-usuarios-list').addEventListener('click',async(e)
     showToast(flotaChk.checked?'Equipo/flota habilitado':'Equipo/flota deshabilitado');
   }
   if(ext){
-    const dias=parseInt(document.querySelector(`input[data-ext-uid="${ext.dataset.uid}"]`)?.value)||7;
+    const dias=parseInt(ext.dataset.dias)||7;
     const snap=await getDoc(doc(db,'usuarios',ext.dataset.uid));const u=snap.data();
     const baseMs=u.demoExpiry?.toMillis?.()||((u.demoStart?.toMillis?.()||Date.now())+86400000);
     const nuevoExpiry=new Date(Math.max(baseMs,Date.now())+dias*86400000);
