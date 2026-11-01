@@ -987,7 +987,7 @@ setupLogoTap('sidebar-logo');
 setupLogoTap('topbar-logo-mob');
 
 // ── PIN MODAL ─────────────────────────────────────────────
-function openPinModal(){pinBuffer="";updatePinDots();document.getElementById('pin-error').style.display='none';document.getElementById('modal-pin-overlay').classList.remove('hidden');}
+function openPinModal(){/* sin PIN: abre directo solo con la cuenta admin */if(window.rtIsAdmin&&window.rtIsAdmin()){openAdminPanel();}}
 function closePinModal(){document.getElementById('modal-pin-overlay').classList.add('hidden');}
 function updatePinDots(){for(let i=0;i<4;i++)document.getElementById(`dot-${i}`).classList.toggle('filled',i<pinBuffer.length);}
 
