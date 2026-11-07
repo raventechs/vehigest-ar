@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.9.3
+  RODIX — v1.9.4
+  v1.9.4: botón «❓ Instructivo» en Ajustes y backup (abre /ayuda/). Solo agrega un enlace, no toca datos.
   v1.9.3: en el celular, el menú del círculo de iniciales suma «⚙️ Ajustes y backup» (modo práctica y backup); y el aviso para instalar la app ahora se ve. Solo agrega botones, no toca datos.
   v1.9.2: SEGURIDAD — al unirse un chofer se envía inviteId (las reglas nuevas exigen invitación válida). Ajustes ya no tira error. No toca datos.
   Fecha de esta versión: 2026-10-26
@@ -685,6 +686,11 @@ var __rtPWA = (function() {
         </div>
         <input type="file" id="inputRestaurar" accept=".json" style="display:none;" onchange="restaurarBackup(this)">
         <p style="font-size:0.75rem;color:var(--muted);">Ultimo backup: <span id="ultimoBackupFecha">-</span></p>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;">
+        <div style="font-weight:700;margin-bottom:8px;">❓ Instructivo</div>
+        <p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;">Guía paso a paso de cómo usar Rodix, con preguntas frecuentes.</p>
+        <a href="ayuda/" target="_blank" rel="noopener" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#25D366;color:#fff;font-weight:700;text-decoration:none;font-size:0.85rem;">📖 Abrir instructivo</a>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
         <div style="font-weight:700;margin-bottom:8px;">Cuenta</div>
