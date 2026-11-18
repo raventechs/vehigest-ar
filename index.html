@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <!--
   ════════════════════════════════════════════════════════════
-  RODIX — v1.9.4
+  RODIX — v1.9.5
+  v1.9.5 (18/11/2026): MÓDULO AMBULANCIAS: el checklist de insumos ahora se actualiza al instante (antes tardaba hasta 1 minuto): al tildar un faltante la revisión del día queda como incompleta con la lista de faltantes y las alertas avisan enseguida; lo mismo al crear la lista, agregar, editar o borrar ítems. No cambia reglas ni datos.
   v1.9.4: botón «❓ Instructivo» en Ajustes y backup (abre /ayuda/). Solo agrega un enlace, no toca datos.
   v1.9.3: en el celular, el menú del círculo de iniciales suma «⚙️ Ajustes y backup» (modo práctica y backup); y el aviso para instalar la app ahora se ve. Solo agrega botones, no toca datos.
   v1.9.2: SEGURIDAD — al unirse un chofer se envía inviteId (las reglas nuevas exigen invitación válida). Ajustes ya no tira error. No toca datos.
@@ -1644,7 +1645,7 @@ function renderInsumosTab(v,el){
     el.innerHTML=`<div class="empty"><div class="empty-icon">🩹</div><div class="empty-msg">Sin checklist de insumos</div><div class="empty-sub">Creá la lista a partir de la plantilla</div><button class="btn-sm gold" id="btn-seed-insumos" style="margin-top:14px">＋ Crear checklist (plantilla)</button></div>`;
     el.querySelector("#btn-seed-insumos").addEventListener("click",async()=>{
       const btn=el.querySelector("#btn-seed-insumos");btn.disabled=true;btn.textContent="Creando...";
-      try{await Promise.all(PLANTILLA_INSUMOS_AMBULANCIA.map(it=>addDoc(collection(db,"vehicles",v.id,"insumos"),{nombre:it.nombre,cantidad:it.cantidad,presente:true})));showToast("Checklist creado");}
+      try{await Promise.all(PLANTILLA_INSUMOS_AMBULANCIA.map(it=>addDoc(collection(db,"vehicles",v.id,"insumos"),{nombre:it.nombre,cantidad:it.cantidad,presente:true})));showToast("Checklist creado");refrescarSilencioso();}
       catch(e){showToast("Error al crear checklist","error");btn.disabled=false;btn.textContent="＋ Crear checklist (plantilla)";}
     });
     return;
@@ -1674,7 +1675,10 @@ function renderInsumosTab(v,el){
     </div>`;
   el.querySelectorAll("[data-insumo-id]").forEach(chk=>{
     chk.addEventListener("change",async()=>{
-      await updateDoc(doc(db,"vehicles",v.id,"insumos",chk.dataset.insumoId),{presente:chk.checked,ultimoCambioPor:currentUser.email,ultimoCambioFecha:serverTimestamp()});
+      const it=v.insumos.find(x=>x.id===chk.dataset.insumoId); if(it)it.presente=chk.checked; /* el estado local queda al día: la revisión y las alertas usan esto */
+      try{await updateDoc(doc(db,"vehicles",v.id,"insumos",chk.dataset.insumoId),{presente:chk.checked,ultimoCambioPor:currentUser.email,ultimoCambioFecha:serverTimestamp()});}
+      catch(e){if(it)it.presente=!chk.checked;chk.checked=!chk.checked;showToast("No se pudo guardar el cambio","error");return;}
+      refrescarSilencioso();
     });
   });
   el.querySelectorAll("[data-edit-insumo]").forEach(btn=>{
@@ -1687,6 +1691,7 @@ function renderInsumosTab(v,el){
     btn.addEventListener("click",async()=>{
       if(!confirm("¿Eliminar este insumo de la lista?"))return;
       await deleteDoc(doc(db,"vehicles",v.id,"insumos",btn.dataset.delInsumo));
+      refrescarSilencioso();
     });
   });
   el.querySelector("#btn-add-insumo")?.addEventListener("click",()=>openInsumoModal(v));
@@ -1700,7 +1705,7 @@ function renderInsumosTab(v,el){
         faltantes:v.insumos.filter(i=>i.presente===false).map(i=>i.nombre),
         timestamp:serverTimestamp()
       });
-      showToast("Revisión confirmada");
+      showToast("Revisión confirmada");refrescarSilencioso();
     }catch(e){showToast("Error al confirmar","error");btn.disabled=false;btn.textContent="✅ Confirmar revisión de hoy";}
   });
 }
@@ -1725,7 +1730,7 @@ function openInsumoModal(v,existing=null){
             await addDoc(collection(db,"vehicles",v.id,"insumos"),{nombre,cantidad,presente:true});
           }
         }
-      closeModal();showToast(isEdit?"Insumo actualizado":"Insumo agregado");
+      closeModal();showToast(isEdit?"Insumo actualizado":"Insumo agregado");refrescarSilencioso();
     }catch(e){showToast("Error al guardar","error");btn.disabled=false;btn.textContent=isEdit?"Guardar cambios":"Agregar";}
   });
 }
